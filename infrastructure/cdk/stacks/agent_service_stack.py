@@ -339,7 +339,7 @@ class AgentServiceStack(Stack):
         provision_fn = _lambda.Function(
             self,
             "ProvisionFunction",
-            function_name="co-scientist-provision",
+            function_name="co-scientist-agents-provision",
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler="index.handler",
             code=_lambda.Code.from_inline(PROVISION_HANDLER),
@@ -352,7 +352,7 @@ class AgentServiceStack(Stack):
         deprovision_fn = _lambda.Function(
             self,
             "DeprovisionFunction",
-            function_name="co-scientist-deprovision",
+            function_name="co-scientist-agents-deprovision",
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler="index.handler",
             code=_lambda.Code.from_inline(DEPROVISION_HANDLER),
@@ -365,7 +365,7 @@ class AgentServiceStack(Stack):
         status_fn = _lambda.Function(
             self,
             "StatusFunction",
-            function_name="co-scientist-status",
+            function_name="co-scientist-agents-status",
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler="index.handler",
             code=_lambda.Code.from_inline(STATUS_HANDLER),
@@ -378,7 +378,7 @@ class AgentServiceStack(Stack):
         cleanup_fn = _lambda.Function(
             self,
             "CleanupFunction",
-            function_name="co-scientist-cleanup",
+            function_name="co-scientist-agents-cleanup",
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler="index.handler",
             code=_lambda.Code.from_inline(CLEANUP_HANDLER),

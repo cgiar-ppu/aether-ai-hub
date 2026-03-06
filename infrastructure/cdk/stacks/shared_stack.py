@@ -11,7 +11,12 @@ from constructs import Construct
 
 
 class SharedStack(Stack):
-    """Shared resources: DynamoDB tables, S3 bucket, ECR repositories."""
+    """Shared resources: DynamoDB tables, S3 bucket, ECR repositories.
+
+    The S3 bucket and ECR repositories are looked up (not created) because
+    they already exist — created by the deploy-backend.yml workflow or
+    manually. DynamoDB tables are created here.
+    """
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -67,55 +72,20 @@ class SharedStack(Stack):
             ),
         )
 
-        # --- S3: User Data Bucket ---
-        self.user_data_bucket = s3.Bucket(
-            self,
-            "UserDataBucket",
-            bucket_name=f"co-scientist-user-data-{self.account}",
-            versioned=True,
-            encryption=s3.BucketEncryption.S3_MANAGED,
-            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
-            removal_policy=RemovalPolicy.RETAIN,
-            cors=[
-                s3.CorsRule(
-                    allowed_headers=["*"],
-                    allowed_methods=[
-                        s3.HttpMethods.GET,
-                        s3.HttpMethods.PUT,
-                        s3.HttpMethods.POST,
-                    ],
-                    allowed_origins=[
-                        "https://www.ai-co-scientist-app.synapsis-analytics.com",
-                        "https://ai-co-scientist-app.synapsis-analytics.com",
-                        "http://localhost:5173",
-                    ],
-                    max_age=3600,
-                )
-            ],
-            lifecycle_rules=[
-                s3.LifecycleRule(
-                    prefix="tmp/",
-                    expiration=Duration.days(7),
-                ),
-            ],
+        # --- S3: User Data Bucket (lookup existing) ---
+        bucket_name = f"co-scientist-user-data-{self.account}"
+        self.user_data_bucket = s3.Bucket.from_bucket_name(
+            self, "UserDataBucket", bucket_name
         )
 
-        # --- ECR: Backend Repository ---
-        self.backend_ecr = ecr.Repository(
-            self,
-            "BackendEcr",
-            repository_name="co-scientist-backend",
-            removal_policy=RemovalPolicy.RETAIN,
-            image_scan_on_push=True,
+        # --- ECR: Backend Repository (lookup existing) ---
+        self.backend_ecr = ecr.Repository.from_repository_name(
+            self, "BackendEcr", "co-scientist-backend"
         )
 
-        # --- ECR: Agents Repository ---
-        self.agents_ecr = ecr.Repository(
-            self,
-            "AgentsEcr",
-            repository_name="co-scientist-agents",
-            removal_policy=RemovalPolicy.RETAIN,
-            image_scan_on_push=True,
+        # --- ECR: Agents Repository (lookup existing) ---
+        self.agents_ecr = ecr.Repository.from_repository_name(
+            self, "AgentsEcr", "co-scientist-agents"
         )
 
         # --- Outputs ---
