@@ -9,7 +9,7 @@ on:
       - '.github/workflows/deploy-backend.yml'
 
 env:
-  AWS_REGION: eu-west-1
+  AWS_REGION: eu-central-1
 
 jobs:
   deploy:
@@ -24,7 +24,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-1
+          aws-region: eu-central-1
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -32,8 +32,8 @@ jobs:
 
       - name: Ensure ECR repository exists
         run: |
-          aws ecr describe-repositories --repository-names co-scientist-backend --region eu-west-1 || \
-          aws ecr create-repository --repository-name co-scientist-backend --region eu-west-1 --image-scanning-configuration scanOnPush=true
+          aws ecr describe-repositories --repository-names co-scientist-backend --region eu-central-1 || \
+          aws ecr create-repository --repository-name co-scientist-backend --region eu-central-1 --image-scanning-configuration scanOnPush=true
 
       - name: Build Docker image
         working-directory: backend

@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="COSCIENTIST_")
 
-    AWS_REGION: str = "eu-west-1"
+    AWS_REGION: str = "eu-central-1"
     COGNITO_USER_POOL_ID: str = ""
     COGNITO_CLIENT_ID: str = ""
     COGNITO_JWKS_URL: str = ""
@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     DYNAMODB_WORKFLOWS_TABLE: str = "co-scientist-workflows"
     S3_BUCKET_USER_DATA: str = ""
     AGENT_SERVICE_BASE_URL: str = "http://localhost:7777"
-    LAMBDA_PROVISION_FUNCTION: str = "co-scientist-provision"
-    LAMBDA_DEPROVISION_FUNCTION: str = "co-scientist-deprovision"
-    LAMBDA_STATUS_FUNCTION: str = "co-scientist-status"
+    LAMBDA_PROVISION_FUNCTION: str = "co-scientist-agents-provision"
+    LAMBDA_DEPROVISION_FUNCTION: str = "co-scientist-agents-deprovision"
+    LAMBDA_STATUS_FUNCTION: str = "co-scientist-agents-status"
     CORS_ORIGINS: list = [
         "https://www.ai-co-scientist-app.synapsis-analytics.com",
         "https://ai-co-scientist-app.synapsis-analytics.com",

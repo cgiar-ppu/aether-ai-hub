@@ -10,7 +10,7 @@ from stacks.agent_service_stack import AgentServiceStack
 
 app = cdk.App()
 
-env = cdk.Environment(account="919959486181", region="eu-west-1")
+env = cdk.Environment(account="919959486181", region="eu-central-1")
 
 # --- Shared resources (DynamoDB, S3, ECR) ---
 shared = SharedStack(app, "CoScientistShared", env=env)

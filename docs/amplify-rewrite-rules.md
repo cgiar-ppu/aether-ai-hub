@@ -15,13 +15,13 @@ The frontend (React SPA) on AWS Amplify needs to proxy `/api/*` requests to the 
 |---|---|---|
 | `/api/<*>` | `http://{ALB_DNS_NAME}/api/<*>` | 200 (Rewrite) |
 
-Replace `{ALB_DNS_NAME}` with the actual ALB DNS name from the CDK output (e.g., `co-scientist-backend-alb-123456.eu-west-1.elb.amazonaws.com`).
+Replace `{ALB_DNS_NAME}` with the actual ALB DNS name from the CDK output (e.g., `co-scientist-backend-alb-123456.eu-central-1.elb.amazonaws.com`).
 
 ## Example
 
 ```
 Source:  /api/<*>
-Target:  http://co-scientist-backend-alb-XXXXXXXX.eu-west-1.elb.amazonaws.com/api/<*>
+Target:  http://co-scientist-backend-alb-XXXXXXXX.eu-central-1.elb.amazonaws.com/api/<*>
 Type:    200 (Rewrite)
 ```
 
