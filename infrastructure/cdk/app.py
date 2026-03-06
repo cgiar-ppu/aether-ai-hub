@@ -6,7 +6,6 @@ from stacks.shared_stack import SharedStack
 from stacks.auth_stack import AuthStack
 from stacks.network_stack import NetworkStack
 from stacks.backend_stack import BackendStack
-from stacks.agent_service_stack import AgentServiceStack
 
 app = cdk.App()
 
@@ -34,17 +33,7 @@ backend = BackendStack(
 backend.add_dependency(shared)
 backend.add_dependency(network)
 
-# --- Agent Service (ASG + Lambdas) ---
-agent_service = AgentServiceStack(
-    app,
-    "CoScientistAgentService",
-    vpc=network.vpc,
-    sg_agents=network.sg_agents,
-    sg_backend=network.sg_backend,
-    agents_ecr=shared.agents_ecr,
-    env=env,
-)
-agent_service.add_dependency(shared)
-agent_service.add_dependency(network)
+# NOTE: Agent Service (ASG + Lambdas) is managed by the co-scientist-agents
+# repo's own CloudFormation stack. Do NOT duplicate it here.
 
 app.synth()
