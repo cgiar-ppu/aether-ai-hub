@@ -1,11 +1,15 @@
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
-import { Send, ArrowLeft } from 'lucide-react';
-import { agents, chatMessages } from '@/data/mockData';
+import { Send, ArrowLeft, Settings2, X } from 'lucide-react';
+import { agents, chatMessages, agentToolsMap } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const confidenceColors: Record<string, string> = {
   high: 'bg-success/10 text-success',
@@ -19,15 +23,28 @@ const AgentChat = () => {
   const selectedAgent = agents.find(a => a.id === agentId) || agents[0];
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [configOpen, setConfigOpen] = useState(true);
+  const [systemPrompt, setSystemPrompt] = useState(selectedAgent.systemPrompt);
+  const [maxTokens, setMaxTokens] = useState(8192);
+  const [temperature, setTemperature] = useState([0.1]);
+  const [toolStates, setToolStates] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const agentMessages = chatMessages.filter(m => m.agentId === selectedAgent.id);
+  const agentTools = agentToolsMap[selectedAgent.id] || [];
+
+  // Reset config when agent changes
+  useEffect(() => {
+    setSystemPrompt(selectedAgent.systemPrompt);
+    const states: Record<string, boolean> = {};
+    agentTools.forEach(t => { states[t.name] = t.enabled; });
+    setToolStates(states);
+  }, [selectedAgent.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [agentMessages]);
 
-  // Simulate typing indicator briefly on mount
   useEffect(() => {
     const timer = setTimeout(() => setIsTyping(true), 1000);
     const timer2 = setTimeout(() => setIsTyping(false), 3000);
@@ -79,16 +96,11 @@ const AgentChat = () => {
                 >
                   {agent.name.split(' ').map(w => w[0]).join('')}
                 </div>
-                <div className={cn(
-                  'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background',
-                  agent.status === 'active' && 'bg-success',
-                  agent.status === 'inactive' && 'bg-muted-foreground/30',
-                  agent.status === 'busy' && 'bg-warning',
-                )} />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background bg-success" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-foreground truncate">{agent.name}</p>
-                <p className="text-[10px] text-muted-foreground">{agent.status === 'active' ? 'Online' : agent.status}</p>
+                <p className="text-[10px] text-muted-foreground">Online</p>
               </div>
             </button>
           ))}
@@ -98,27 +110,37 @@ const AgentChat = () => {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Chat Header */}
-        <div className="glass border-b border-border px-6 py-3 flex items-center gap-3 shrink-0">
-          <button
-            onClick={() => navigate('/agents')}
-            className="md:hidden p-1 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-semibold text-primary-foreground"
-            style={{ background: `linear-gradient(135deg, hsl(${selectedAgent.avatarHue}, 60%, 50%), hsl(${selectedAgent.avatarHue + 30}, 60%, 45%))` }}
-          >
-            {selectedAgent.name.split(' ').map(w => w[0]).join('')}
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">{selectedAgent.name}</h2>
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-success" />
-              <span className="text-[10px] text-success font-mono">Online</span>
-              <span className="text-[10px] text-muted-foreground ml-2 font-mono">{selectedAgent.model}</span>
+        <div className="glass border-b border-border px-6 py-3 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/agents')}
+              className="md:hidden p-1 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-semibold text-primary-foreground"
+              style={{ background: `linear-gradient(135deg, hsl(${selectedAgent.avatarHue}, 60%, 50%), hsl(${selectedAgent.avatarHue + 30}, 60%, 45%))` }}
+            >
+              {selectedAgent.name.split(' ').map(w => w[0]).join('')}
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">{selectedAgent.name}</h2>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                <span className="text-[10px] text-success font-mono">Online</span>
+                <span className="text-[10px] text-muted-foreground ml-2 font-mono">{selectedAgent.model}</span>
+              </div>
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setConfigOpen(!configOpen)}
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* Messages */}
@@ -166,7 +188,6 @@ const AgentChat = () => {
                   {msg.content}
                 </div>
 
-                {/* Tool usage badge */}
                 {msg.toolUsed && (
                   <div className="flex items-center gap-1 ml-1">
                     <span className="text-[10px] font-mono bg-secondary/80 text-muted-foreground px-2 py-0.5 rounded-full">
@@ -175,7 +196,6 @@ const AgentChat = () => {
                   </div>
                 )}
 
-                {/* Confidence badge */}
                 {msg.confidence && (
                   <div className="flex items-center gap-1.5 ml-1">
                     <span className={cn(
@@ -187,13 +207,11 @@ const AgentChat = () => {
                   </div>
                 )}
 
-                {/* Timestamp */}
                 <span className="text-[10px] font-mono text-muted-foreground ml-1">{msg.timestamp}</span>
               </div>
             </motion.div>
           ))}
 
-          {/* Streaming / Typing indicator */}
           {isTyping && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -232,6 +250,99 @@ const AgentChat = () => {
           </form>
         </div>
       </div>
+
+      {/* Right Config Sidebar */}
+      {configOpen && (
+        <motion.div
+          className="hidden md:flex w-80 shrink-0 flex-col glass border-l border-border overflow-y-auto"
+          initial={{ width: 0, opacity: 0 }}
+          animate={{ width: 320, opacity: 1 }}
+          exit={{ width: 0, opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <div className="flex items-center justify-between p-4 border-b border-border">
+            <h3 className="text-sm font-semibold text-foreground">Configuration</h3>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setConfigOpen(false)}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          <div className="p-4 space-y-6">
+            {/* Model */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-foreground">Model</label>
+              <Select value={selectedAgent.model} disabled>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Claude Sonnet 4">Claude Sonnet 4</SelectItem>
+                  <SelectItem value="Claude Opus 4.6">Claude Opus 4.6</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* System Prompt */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-foreground">System Prompt</label>
+              <Textarea
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                className="text-xs min-h-[120px] resize-none"
+              />
+            </div>
+
+            {/* Tools */}
+            <div className="space-y-3">
+              <label className="text-xs font-medium text-foreground">Tools</label>
+              <div className="space-y-2">
+                {agentTools.map((tool) => (
+                  <div key={tool.name} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-secondary/30">
+                    <div className="min-w-0">
+                      <p className="text-xs font-mono font-medium text-foreground">{tool.name}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{tool.description}</p>
+                    </div>
+                    <Switch
+                      checked={toolStates[tool.name] ?? tool.enabled}
+                      onCheckedChange={(checked) => setToolStates(prev => ({ ...prev, [tool.name]: checked }))}
+                      className="ml-2 shrink-0"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Max Tokens */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-foreground">Max Tokens</label>
+              <Input
+                type="number"
+                value={maxTokens}
+                onChange={(e) => setMaxTokens(Number(e.target.value))}
+                className="h-9 text-xs"
+              />
+            </div>
+
+            {/* Temperature */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-foreground">Temperature</label>
+                <span className="text-xs font-mono text-muted-foreground">{temperature[0].toFixed(1)}</span>
+              </div>
+              <Slider
+                value={temperature}
+                onValueChange={setTemperature}
+                min={0}
+                max={1}
+                step={0.1}
+              />
+            </div>
+
+            {/* Save */}
+            <Button className="w-full h-9 text-xs">Save Changes</Button>
+          </div>
+        </motion.div>
+      )}
     </motion.div>
   );
 };
