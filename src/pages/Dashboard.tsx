@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Clock } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import GlassCard from '@/components/layout/GlassCard';
 import { dashboardStats, activityData, agents, recentActivities, workflows } from '@/data/mockData';
 import { cn } from '@/lib/utils';
@@ -38,37 +38,6 @@ function CountUp({ value, suffix = '' }: { value: number; suffix?: string }) {
   return <>{count}{suffix}</>;
 }
 
-function CircularProgress({ value, label, color }: { value: number; label: string; color: string }) {
-  const radius = 24;
-  const circumference = 2 * Math.PI * radius;
-  const [offset, setOffset] = useState(circumference);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setOffset(circumference - (value / 100) * circumference);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [value, circumference]);
-
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width="56" height="56" className="-rotate-90">
-        <circle cx="28" cy="28" r={radius} fill="none" stroke="hsl(var(--border))" strokeWidth="4" />
-        <circle
-          cx="28" cy="28" r={radius} fill="none"
-          stroke={color}
-          strokeWidth="4" strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-1000 ease-out"
-        />
-      </svg>
-      <span className="absolute text-xs font-mono font-bold text-foreground">{value}%</span>
-      <span className="text-label text-muted-foreground">{label}</span>
-    </div>
-  );
-}
-
 const Dashboard = () => {
   const navigate = useNavigate();
   const topAgents = [...agents].sort((a, b) => b.tasks - a.tasks).slice(0, 5);
@@ -85,38 +54,45 @@ const Dashboard = () => {
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Good morning, Jose</h1>
-          <p className="text-sm text-muted-foreground mt-1">3 agents active, 2 workflows running</p>
+          <p className="text-sm text-muted-foreground mt-1">6 agents active, 1 workflow running</p>
         </div>
-        <motion.div className="flex gap-3 overflow-x-auto pb-2" variants={container} initial="hidden" animate="show">
-          {dashboardStats.map((stat) => (
-            <motion.div key={stat.label} variants={item}>
-              <GlassCard className="min-w-[160px] p-4 space-y-2">
-                <span className="text-label text-muted-foreground">{stat.label}</span>
-                <div className="text-2xl font-bold font-mono text-foreground">
-                  <CountUp value={stat.value} suffix={stat.suffix} />
-                </div>
-                <div className="flex items-center gap-1">
-                  {stat.trendUp ? (
-                    <ArrowUpRight className="h-3 w-3 text-success" />
-                  ) : (
-                    <ArrowDownRight className="h-3 w-3 text-destructive" />
-                  )}
-                  <span className={cn('text-[11px] font-mono', stat.trendUp ? 'text-success' : 'text-destructive')}>
-                    {stat.trend}%
-                  </span>
-                </div>
-                <div className="h-6">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={stat.sparkline.map((v, i) => ({ v, i }))}>
-                      <Area type="monotone" dataKey="v" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.1)" strokeWidth={1.5} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </GlassCard>
-            </motion.div>
-          ))}
-        </motion.div>
       </div>
+
+      {/* 6 KPI Stat Cards */}
+      <motion.div
+        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
+        variants={container}
+        initial="hidden"
+        animate="show"
+      >
+        {dashboardStats.map((stat) => (
+          <motion.div key={stat.label} variants={item}>
+            <GlassCard className="p-4 space-y-2">
+              <span className="text-label text-muted-foreground">{stat.label}</span>
+              <div className="text-2xl font-bold font-mono text-foreground">
+                <CountUp value={stat.value} suffix={stat.suffix} />
+              </div>
+              <div className="flex items-center gap-1">
+                {stat.trendUp ? (
+                  <ArrowUpRight className="h-3 w-3 text-success" />
+                ) : (
+                  <ArrowDownRight className="h-3 w-3 text-destructive" />
+                )}
+                <span className={cn('text-[11px] font-mono', stat.trendUp ? 'text-success' : 'text-destructive')}>
+                  {stat.trend}%
+                </span>
+              </div>
+              <div className="h-6">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={stat.sparkline.map((v, i) => ({ v, i }))}>
+                    <Area type="monotone" dataKey="v" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.1)" strokeWidth={1.5} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </GlassCard>
+          </motion.div>
+        ))}
+      </motion.div>
 
       {/* Bento Grid Row 1 */}
       <motion.div
@@ -170,7 +146,7 @@ const Dashboard = () => {
             <h3 className="text-sm font-semibold text-foreground mb-4">Top Agents</h3>
             <div className="space-y-3">
               {topAgents.map((agent, i) => (
-                <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/30 transition-colors">
+                <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/30 transition-colors cursor-pointer" onClick={() => navigate(`/agents/${agent.id}/chat`)}>
                   <span className={cn('text-xs font-mono w-4', i === 0 ? 'text-primary font-bold' : 'text-muted-foreground')}>
                     {i + 1}
                   </span>

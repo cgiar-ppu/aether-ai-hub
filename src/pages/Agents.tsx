@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
-import { Search, Plus, ArrowRight } from 'lucide-react';
+import { Search, Plus, ArrowRight, Brain, Wrench } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import GlassCard from '@/components/layout/GlassCard';
-import { agents } from '@/data/mockData';
+import { agents, orchestrator } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ const item = {
 
 const Agents = () => {
   const [search, setSearch] = useState('');
+  const navigate = useNavigate();
   const filtered = agents.filter(a =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.type.toLowerCase().includes(search.toLowerCase())
@@ -55,6 +57,41 @@ const Agents = () => {
         </div>
       </div>
 
+      {/* Orchestrator Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <div className="relative rounded-2xl p-5 overflow-hidden bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+              <Brain className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-base font-semibold text-foreground">{orchestrator.name}</h2>
+                <span className="text-[10px] font-mono bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                  {orchestrator.model}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                  <span className="text-[10px] font-mono text-success">Online</span>
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5 max-w-2xl">{orchestrator.description}</p>
+            </div>
+          </div>
+          {/* Decorative connection line */}
+          <div className="absolute bottom-0 left-10 w-px h-4 border-l-2 border-dashed border-primary/30" />
+        </div>
+      </motion.div>
+
+      {/* Dashed connector */}
+      <div className="flex justify-start pl-10">
+        <div className="w-px h-4 border-l-2 border-dashed border-primary/20" />
+      </div>
+
       {/* Grid */}
       <motion.div
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
@@ -64,7 +101,10 @@ const Agents = () => {
       >
         {filtered.map((agent) => (
           <motion.div key={agent.id} variants={item}>
-            <GlassCard className="p-5 group relative">
+            <GlassCard
+              className="p-5 group relative cursor-pointer"
+              onClick={() => navigate(`/agents/${agent.id}/chat`)}
+            >
               {/* Top: avatar + name + status */}
               <div className="flex items-start gap-3 mb-3">
                 <div className="relative">
@@ -83,14 +123,29 @@ const Agents = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold text-foreground">{agent.name}</h3>
-                  <span className="text-label text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-md inline-block mt-1">
-                    {agent.type}
-                  </span>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-label text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-md">
+                      {agent.type}
+                    </span>
+                    <span className="text-[10px] font-mono text-primary/80 bg-primary/10 px-1.5 py-0.5 rounded">
+                      {agent.model}
+                    </span>
+                  </div>
                 </div>
               </div>
 
               {/* Description */}
-              <p className="text-xs text-muted-foreground line-clamp-2 mb-4">{agent.description}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{agent.description}</p>
+
+              {/* Tools */}
+              <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                <Wrench className="h-3 w-3 text-muted-foreground shrink-0" />
+                {agent.tools.map(tool => (
+                  <span key={tool} className="text-[10px] font-mono bg-secondary/50 text-muted-foreground px-1.5 py-0.5 rounded">
+                    {tool}
+                  </span>
+                ))}
+              </div>
 
               {/* Stats */}
               <div className="flex items-center gap-0 text-xs mb-3">
@@ -110,13 +165,16 @@ const Agents = () => {
                 </div>
               </div>
 
-              {/* Tags */}
-              <div className="flex gap-1.5 flex-wrap">
-                {agent.tags.map(tag => (
-                  <span key={tag} className="text-[10px] bg-secondary/50 text-muted-foreground px-2 py-0.5 rounded-md">
-                    {tag}
-                  </span>
-                ))}
+              {/* Bottom: tags + last active */}
+              <div className="flex items-center justify-between">
+                <div className="flex gap-1.5 flex-wrap">
+                  {agent.tags.map(tag => (
+                    <span key={tag} className="text-[10px] bg-secondary/50 text-muted-foreground px-2 py-0.5 rounded-md">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <span className="text-[10px] font-mono text-muted-foreground shrink-0 ml-2">{agent.lastActive}</span>
               </div>
 
               {/* Hover arrow */}

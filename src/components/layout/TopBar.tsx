@@ -35,7 +35,9 @@ const TopBar = () => {
       {/* Nav Pills */}
       <nav className="hidden md:flex items-center gap-1">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = item.path === '/'
+            ? location.pathname === '/'
+            : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
           return (
             <button
               key={item.path}

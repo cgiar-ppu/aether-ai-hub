@@ -12,6 +12,7 @@ import Agents from "@/pages/Agents";
 import Workflows from "@/pages/Workflows";
 import Files from "@/pages/Files";
 import Settings from "@/pages/Settings";
+import AgentChat from "@/pages/AgentChat";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ function AppRoutes() {
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/agents" element={<Agents />} />
+        <Route path="/agents/:agentId/chat" element={<AgentChat />} />
         <Route path="/workflows" element={<Workflows />} />
         <Route path="/files" element={<Files />} />
         <Route path="/settings" element={<Settings />} />

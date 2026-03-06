@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Search, Upload, FileText, FileSpreadsheet, Image, File, Folder, ChevronRight } from 'lucide-react';
+import { Search, Upload, FileText, FileSpreadsheet, Image, File, Folder, ChevronRight, LayoutGrid, List } from 'lucide-react';
 import { useState } from 'react';
 import GlassCard from '@/components/layout/GlassCard';
 import { files } from '@/data/mockData';
@@ -13,6 +13,8 @@ const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   docx: File,
   png: Image,
   folder: Folder,
+  md: FileText,
+  xlsx: FileSpreadsheet,
 };
 
 const typeBadgeColors: Record<string, string> = {
@@ -20,11 +22,13 @@ const typeBadgeColors: Record<string, string> = {
   csv: 'bg-success/10 text-success',
   docx: 'bg-primary/10 text-primary',
   png: 'bg-warning/10 text-warning',
+  md: 'bg-violet-500/10 text-violet-500',
+  xlsx: 'bg-emerald-500/10 text-emerald-600',
 };
 
 const container = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
+  show: { opacity: 1, transition: { staggerChildren: 0.04 } },
 };
 
 const item = {
@@ -34,9 +38,33 @@ const item = {
 
 const Files = () => {
   const [search, setSearch] = useState('');
-  const filtered = files.filter(f =>
+  const [currentFolder, setCurrentFolder] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  const currentFolderItem = currentFolder ? files.find(f => f.id === currentFolder) : null;
+
+  const visibleFiles = files.filter(f => {
+    if (currentFolder) {
+      return f.parentId === currentFolder;
+    }
+    return !f.parentId;
+  });
+
+  const filtered = visibleFiles.filter(f =>
     f.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleFileClick = (file: typeof files[0]) => {
+    if (file.type === 'folder') {
+      setCurrentFolder(file.id);
+      setSearch('');
+    }
+  };
+
+  const navigateUp = () => {
+    setCurrentFolder(null);
+    setSearch('');
+  };
 
   return (
     <motion.div
@@ -62,6 +90,21 @@ const Files = () => {
               className="pl-9 h-9 glass border-border text-sm w-56"
             />
           </div>
+          {/* View toggle */}
+          <div className="flex items-center glass rounded-lg overflow-hidden">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={cn('p-2 transition-colors', viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground')}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn('p-2 transition-colors', viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground')}
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
           <Button className="h-9 rounded-xl gap-2 text-sm">
             <Upload className="h-3.5 w-3.5" />
             Upload
@@ -71,51 +114,132 @@ const Files = () => {
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 text-[11px] font-mono">
-        <span className="text-muted-foreground hover:text-foreground cursor-pointer">Home</span>
+        <span
+          className="text-muted-foreground hover:text-foreground cursor-pointer"
+          onClick={navigateUp}
+        >
+          Home
+        </span>
         <ChevronRight className="h-3 w-3 text-muted-foreground" />
-        <span className="text-foreground">All Files</span>
+        {currentFolderItem ? (
+          <>
+            <span
+              className="text-muted-foreground hover:text-foreground cursor-pointer"
+              onClick={navigateUp}
+            >
+              All Files
+            </span>
+            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            <span className="text-foreground">{currentFolderItem.name}</span>
+          </>
+        ) : (
+          <span className="text-foreground">All Files</span>
+        )}
       </div>
 
-      {/* Grid */}
-      <motion.div
-        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
-        variants={container}
-        initial="hidden"
-        animate="show"
-      >
-        {filtered.map((file) => {
-          const Icon = typeIcons[file.type] || File;
-          const isFolder = file.type === 'folder';
+      {/* Grid View */}
+      {viewMode === 'grid' && (
+        <motion.div
+          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+          variants={container}
+          initial="hidden"
+          animate="show"
+          key={`grid-${currentFolder}`}
+        >
+          {filtered.map((file) => {
+            const Icon = typeIcons[file.type] || File;
+            const isFolder = file.type === 'folder';
 
-          return (
-            <motion.div key={file.id} variants={item}>
-              <GlassCard className="p-4 group">
-                <div className="flex flex-col items-center text-center gap-3">
-                  <div className={cn(
-                    'w-10 h-10 rounded-xl flex items-center justify-center',
-                    isFolder ? 'bg-primary/10' : 'bg-secondary/50'
-                  )}>
-                    <Icon className={cn('h-5 w-5', isFolder ? 'text-primary' : 'text-muted-foreground')} />
+            return (
+              <motion.div key={file.id} variants={item}>
+                <GlassCard
+                  className="p-4 group"
+                  onClick={() => handleFileClick(file)}
+                >
+                  <div className="flex flex-col items-center text-center gap-3">
+                    <div className={cn(
+                      'w-10 h-10 rounded-xl flex items-center justify-center',
+                      isFolder ? 'bg-primary/10' : 'bg-secondary/50'
+                    )}>
+                      <Icon className={cn('h-5 w-5', isFolder ? 'text-primary' : 'text-muted-foreground')} />
+                    </div>
+                    <div className="w-full">
+                      <p className="text-xs font-medium text-foreground truncate">{file.name}</p>
+                      <div className="flex items-center justify-center gap-2 mt-1">
+                        {file.size && <span className="text-[10px] font-mono text-muted-foreground">{file.size}</span>}
+                        {isFolder && <span className="text-[10px] font-mono text-muted-foreground">{file.items} items</span>}
+                        {!isFolder && (
+                          <span className={cn('text-[10px] font-mono px-1.5 py-0.5 rounded', typeBadgeColors[file.type] || 'bg-muted text-muted-foreground')}>
+                            {file.type.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground block mt-1">{file.date}</span>
+                    </div>
                   </div>
-                  <div className="w-full">
-                    <p className="text-xs font-medium text-foreground truncate">{file.name}</p>
-                    <div className="flex items-center justify-center gap-2 mt-1">
-                      {file.size && <span className="text-[10px] font-mono text-muted-foreground">{file.size}</span>}
-                      {isFolder && <span className="text-[10px] font-mono text-muted-foreground">{file.items} items</span>}
+                </GlassCard>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      )}
+
+      {/* List View */}
+      {viewMode === 'list' && (
+        <motion.div
+          className="glass rounded-2xl overflow-hidden"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          key={`list-${currentFolder}`}
+        >
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left text-label text-muted-foreground px-4 py-3">Name</th>
+                <th className="text-left text-label text-muted-foreground px-4 py-3 hidden sm:table-cell">Size</th>
+                <th className="text-left text-label text-muted-foreground px-4 py-3 hidden md:table-cell">Type</th>
+                <th className="text-left text-label text-muted-foreground px-4 py-3">Date Modified</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((file) => {
+                const Icon = typeIcons[file.type] || File;
+                const isFolder = file.type === 'folder';
+                return (
+                  <tr
+                    key={file.id}
+                    className="border-b border-border/50 hover:bg-secondary/20 transition-colors cursor-pointer"
+                    onClick={() => handleFileClick(file)}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <Icon className={cn('h-4 w-4 shrink-0', isFolder ? 'text-primary' : 'text-muted-foreground')} />
+                        <span className="text-xs font-medium text-foreground truncate">{file.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {file.size || (isFolder ? `${file.items} items` : '--')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
                       {!isFolder && (
                         <span className={cn('text-[10px] font-mono px-1.5 py-0.5 rounded', typeBadgeColors[file.type] || 'bg-muted text-muted-foreground')}>
                           {file.type.toUpperCase()}
                         </span>
                       )}
-                    </div>
-                    <span className="text-[10px] font-mono text-muted-foreground block mt-1">{file.date}</span>
-                  </div>
-                </div>
-              </GlassCard>
-            </motion.div>
-          );
-        })}
-      </motion.div>
+                      {isFolder && <span className="text-[10px] font-mono text-muted-foreground">Folder</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-mono text-muted-foreground">{file.date}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </motion.div>
+      )}
     </motion.div>
   );
 };

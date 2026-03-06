@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import ReactFlow, {
   Background,
@@ -8,18 +8,16 @@ import ReactFlow, {
   Edge,
   Handle,
   Position,
-  useNodesState,
-  useEdgesState,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Plus, Database, Settings, Brain, CheckCircle, FileText, Search, Filter, BookOpen, Download, GitBranch, Users, Globe } from 'lucide-react';
-import { workflows } from '@/data/mockData';
+import { Plus, Database, Settings, Brain, CheckCircle, FileText, Search, Play, Clock } from 'lucide-react';
+import { workflows, agents } from '@/data/mockData';
 import GlassCard from '@/components/layout/GlassCard';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  Database, Settings, Brain, CheckCircle, FileText, Search, Filter, BookOpen, Download, GitBranch, Users, Globe,
+  Database, Settings, Brain, CheckCircle, FileText, Search,
 };
 
 function GlassNode({ data }: { data: { label: string; status: string; duration?: string; icon: string } }) {
@@ -74,9 +72,6 @@ const Workflows = () => {
     style: { stroke: 'hsl(var(--primary))', strokeWidth: 2 },
   })), [currentWorkflow]);
 
-  const [nodes, , onNodesChange] = useNodesState(flowNodes);
-  const [edges, , onEdgesChange] = useEdgesState(flowEdges);
-
   const filteredWorkflows = filterStatus === 'all' ? workflows : workflows.filter(w => w.status === filterStatus);
 
   return (
@@ -91,7 +86,7 @@ const Workflows = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Workflows</h1>
-          <p className="text-sm text-muted-foreground mt-1">Design and automate research pipelines</p>
+          <p className="text-sm text-muted-foreground mt-1">Research pipeline templates</p>
         </div>
         <div className="flex items-center gap-2">
           {['all', 'running', 'completed', 'draft'].map(s => (
@@ -118,39 +113,75 @@ const Workflows = () => {
       {/* Split Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 min-h-[500px]">
         {/* List */}
-        <div className="lg:col-span-2 space-y-2">
-          {filteredWorkflows.map(wf => (
-            <motion.div
-              key={wf.id}
-              onClick={() => setSelected(wf.id)}
-              className={cn(
-                'glass rounded-xl p-4 cursor-pointer transition-all',
-                selected === wf.id
-                  ? 'border-l-2 border-l-primary bg-primary/5'
-                  : 'hover:bg-secondary/30'
-              )}
-              whileHover={{ scale: 1.01 }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-foreground">{wf.name}</span>
-                <span className={cn(
-                  'text-[10px] font-mono px-2 py-0.5 rounded-full',
-                  wf.status === 'running' && 'bg-primary/10 text-primary animate-pulse',
-                  wf.status === 'completed' && 'bg-success/10 text-success',
-                  wf.status === 'draft' && 'bg-muted text-muted-foreground',
-                )}>
-                  {wf.status}
-                </span>
-              </div>
-              <div className="w-full h-0.5 bg-secondary rounded-full overflow-hidden mb-2">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${wf.progress}%` }} />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono text-muted-foreground">{wf.steps} steps</span>
-                <span className="text-[10px] font-mono text-muted-foreground">{wf.created}</span>
-              </div>
-            </motion.div>
-          ))}
+        <div className="lg:col-span-2 space-y-3">
+          {filteredWorkflows.map(wf => {
+            const sequenceAgents = wf.agentSequence.map(id => agents.find(a => a.id === id)).filter(Boolean);
+            return (
+              <motion.div
+                key={wf.id}
+                onClick={() => setSelected(wf.id)}
+                className={cn(
+                  'glass rounded-xl p-4 cursor-pointer transition-all',
+                  selected === wf.id
+                    ? 'border-l-2 border-l-primary bg-primary/5'
+                    : 'hover:bg-secondary/30'
+                )}
+                whileHover={{ scale: 1.01 }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-foreground">{wf.name}</span>
+                  <span className={cn(
+                    'text-[10px] font-mono px-2 py-0.5 rounded-full',
+                    wf.status === 'running' && 'bg-primary/10 text-primary animate-pulse',
+                    wf.status === 'completed' && 'bg-success/10 text-success',
+                    wf.status === 'draft' && 'bg-muted text-muted-foreground',
+                  )}>
+                    {wf.status}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground mb-3 line-clamp-2">{wf.description}</p>
+
+                {/* Agent Sequence */}
+                <div className="flex items-center gap-1 mb-3">
+                  {sequenceAgents.map((agent, i) => (
+                    <div key={agent!.id} className="flex items-center">
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-semibold text-primary-foreground border-2 border-background"
+                        style={{ background: `linear-gradient(135deg, hsl(${agent!.avatarHue}, 60%, 50%), hsl(${agent!.avatarHue + 30}, 60%, 45%))`, marginLeft: i > 0 ? '-6px' : '0' }}
+                        title={agent!.name}
+                      >
+                        {agent!.name.split(' ').map(w => w[0]).join('')}
+                      </div>
+                      {i < sequenceAgents.length - 1 && (
+                        <div className="w-4 h-px bg-primary/30 mx-0.5" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Progress */}
+                <div className="w-full h-0.5 bg-secondary rounded-full overflow-hidden mb-2">
+                  <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${wf.progress}%` }} />
+                </div>
+
+                {/* Meta */}
+                <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {wf.lastRun}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Play className="h-3 w-3" />
+                      {wf.runCount} runs
+                    </span>
+                  </div>
+                  <span>{wf.steps} steps</span>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
 
         {/* Canvas */}

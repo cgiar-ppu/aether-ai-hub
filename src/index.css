@@ -36,8 +36,8 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 0 0% 0% / 0.06;
-    --input: 0 0% 0% / 0.06;
+    --border: 0 0% 0% / 0.12;
+    --input: 0 0% 0% / 0.12;
     --ring: 199 89% 48%;
 
     --radius: 0.75rem;
@@ -141,6 +141,11 @@
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border: 1px solid hsl(var(--border));
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .dark .glass {
+    box-shadow: none;
   }
 
   .glass-hover:hover {
