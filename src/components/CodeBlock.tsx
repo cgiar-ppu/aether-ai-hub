@@ -51,9 +51,9 @@ const highlightPython = (code: string): string => {
     result += highlightPlain(gap, keywords, numbers, functions, decorators);
 
     if (token.type === 'string') {
-      result += `<span class="text-emerald-400">${escapeHtml(token.text)}</span>`;
+      result += `<span style="color:#34d399">${escapeHtml(token.text)}</span>`;
     } else if (token.type === 'comment') {
-      result += `<span class="text-zinc-500">${escapeHtml(token.text)}</span>`;
+      result += `<span style="color:#71717a">${escapeHtml(token.text)}</span>`;
     }
     lastIdx = token.end;
   }
@@ -73,10 +73,10 @@ const highlightPlain = (
   decorators: RegExp,
 ) => {
   let escaped = escapeHtml(text);
-  escaped = escaped.replace(decorators, '<span class="text-yellow-400">$1</span>');
-  escaped = escaped.replace(functions, '<span class="text-sky-300">$1</span>');
-  escaped = escaped.replace(keywords, '<span class="text-violet-400 font-semibold">$1</span>');
-  escaped = escaped.replace(numbers, '<span class="text-amber-300">$1</span>');
+  escaped = escaped.replace(decorators, '<span style="color:#facc15">$1</span>');
+  escaped = escaped.replace(functions, '<span style="color:#7dd3fc">$1</span>');
+  escaped = escaped.replace(keywords, '<span style="color:#a78bfa;font-weight:600">$1</span>');
+  escaped = escaped.replace(numbers, '<span style="color:#fcd34d">$1</span>');
   return escaped;
 };
 
