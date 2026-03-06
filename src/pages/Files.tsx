@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Search, Upload, FileText, FileSpreadsheet, Image, File, Folder, ChevronRight, LayoutGrid, List, MoreVertical, FolderPlus, Pencil, Trash2, FolderInput } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import GlassCard from '@/components/layout/GlassCard';
 import { files as initialFiles, FileItem } from '@/data/mockData';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
 
 const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   pdf: FileText,
@@ -48,6 +49,8 @@ const Files = () => {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<FileItem | null>(null);
   const [renameName, setRenameName] = useState('');
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const currentFolderItem = currentFolder ? filesList.find(f => f.id === currentFolder) : null;
   const folders = filesList.filter(f => f.type === 'folder' && !f.parentId);
@@ -57,7 +60,6 @@ const Files = () => {
     return !f.parentId;
   });
 
-  // Sort: folders first, then files
   const sorted = [...visibleFiles].sort((a, b) => {
     if (a.type === 'folder' && b.type !== 'folder') return -1;
     if (a.type !== 'folder' && b.type === 'folder') return 1;
@@ -94,19 +96,44 @@ const Files = () => {
     setNewFolderOpen(false);
   };
 
-  const moveToFolder = (fileId: string, folderId: string) => {
+  const moveToFolder = useCallback((fileId: string, folderId: string) => {
     setFilesList(prev => {
+      const file = prev.find(f => f.id === fileId);
+      const folder = prev.find(f => f.id === folderId);
+      if (!file || !folder) return prev;
+
       const updated = prev.map(f => f.id === fileId ? { ...f, parentId: folderId } : f);
-      // Update folder item count
-      return updated.map(f => {
-        if (f.id === folderId) {
-          const count = updated.filter(x => x.parentId === folderId).length;
+      const result = updated.map(f => {
+        if (f.type === 'folder') {
+          const count = updated.filter(x => x.parentId === f.id).length;
           return { ...f, items: count };
         }
         return f;
       });
+
+      toast.success(`Moved "${file.name}" to "${folder.name}"`);
+      return result;
     });
-  };
+  }, []);
+
+  const moveToRoot = useCallback((fileId: string) => {
+    setFilesList(prev => {
+      const file = prev.find(f => f.id === fileId);
+      if (!file || !file.parentId) return prev;
+
+      const updated = prev.map(f => f.id === fileId ? { ...f, parentId: undefined } : f);
+      const result = updated.map(f => {
+        if (f.type === 'folder') {
+          const count = updated.filter(x => x.parentId === f.id).length;
+          return { ...f, items: count };
+        }
+        return f;
+      });
+
+      toast.success(`Moved "${file.name}" to root`);
+      return result;
+    });
+  }, []);
 
   const deleteFile = (fileId: string) => {
     setFilesList(prev => prev.filter(f => f.id !== fileId));
@@ -124,6 +151,70 @@ const Files = () => {
     setRenameOpen(false);
     setRenameTarget(null);
   };
+
+  // Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent, fileId: string) => {
+    e.dataTransfer.setData('text/plain', fileId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggingId(fileId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    setDragOverTarget(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleFolderDragEnter = (e: React.DragEvent, folderId: string) => {
+    e.preventDefault();
+    setDragOverTarget(folderId);
+  };
+
+  const handleFolderDragLeave = (e: React.DragEvent) => {
+    // Only clear if leaving the actual folder element
+    const related = e.relatedTarget as HTMLElement;
+    if (!e.currentTarget.contains(related)) {
+      setDragOverTarget(null);
+    }
+  };
+
+  const handleFolderDrop = (e: React.DragEvent, folderId: string) => {
+    e.preventDefault();
+    const fileId = e.dataTransfer.getData('text/plain');
+    if (fileId && fileId !== folderId) {
+      moveToFolder(fileId, folderId);
+    }
+    setDragOverTarget(null);
+    setDraggingId(null);
+  };
+
+  const handleBreadcrumbDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const fileId = e.dataTransfer.getData('text/plain');
+    if (fileId) {
+      moveToRoot(fileId);
+    }
+    setDragOverTarget(null);
+    setDraggingId(null);
+  };
+
+  const handleBreadcrumbDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverTarget('breadcrumb-home');
+  };
+
+  const handleBreadcrumbDragLeave = (e: React.DragEvent) => {
+    const related = e.relatedTarget as HTMLElement;
+    if (!e.currentTarget.contains(related)) {
+      setDragOverTarget(null);
+    }
+  };
+
+  const isFolder = (file: FileItem) => file.type === 'folder';
 
   const FileActions = ({ file }: { file: FileItem }) => {
     if (file.type === 'folder') return null;
@@ -219,7 +310,18 @@ const Files = () => {
       </div>
 
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-[11px] font-mono">
+      <div
+        className={cn(
+          'flex items-center gap-1 text-[11px] font-mono rounded-lg px-2 py-1.5 transition-all',
+          dragOverTarget === 'breadcrumb-home' && currentFolder
+            ? 'border-2 border-dashed border-primary bg-primary/5'
+            : 'border-2 border-transparent'
+        )}
+        onDragOver={currentFolder ? handleDragOver : undefined}
+        onDragEnter={currentFolder ? handleBreadcrumbDragEnter : undefined}
+        onDragLeave={currentFolder ? handleBreadcrumbDragLeave : undefined}
+        onDrop={currentFolder ? handleBreadcrumbDrop : undefined}
+      >
         <span className="text-muted-foreground hover:text-foreground cursor-pointer" onClick={navigateUp}>Home</span>
         <ChevronRight className="h-3 w-3 text-muted-foreground" />
         {currentFolderItem ? (
@@ -227,6 +329,9 @@ const Files = () => {
             <span className="text-muted-foreground hover:text-foreground cursor-pointer" onClick={navigateUp}>All Files</span>
             <ChevronRight className="h-3 w-3 text-muted-foreground" />
             <span className="text-foreground">{currentFolderItem.name}</span>
+            {dragOverTarget === 'breadcrumb-home' && (
+              <span className="text-[10px] text-primary ml-2">← Drop here to move to root</span>
+            )}
           </>
         ) : (
           <span className="text-foreground">All Files</span>
@@ -244,21 +349,49 @@ const Files = () => {
         >
           {filtered.map((file) => {
             const Icon = typeIcons[file.type] || File;
-            const isFolder = file.type === 'folder';
+            const isFolderItem = isFolder(file);
+            const isDragging = draggingId === file.id;
+            const isDragTarget = dragOverTarget === file.id && isFolderItem;
+
             return (
-              <motion.div key={file.id} variants={item}>
-                <GlassCard className="p-4 group relative" onClick={() => handleFileClick(file)}>
+              <motion.div
+                key={file.id}
+                variants={item}
+                draggable={!isFolderItem}
+                onDragStart={!isFolderItem ? (e) => handleDragStart(e as unknown as React.DragEvent, file.id) : undefined}
+                onDragEnd={handleDragEnd}
+                style={{
+                  opacity: isDragging ? 0.5 : 1,
+                  transform: isDragging ? 'scale(1.02)' : undefined,
+                  transition: 'opacity 0.2s, transform 0.2s',
+                }}
+              >
+                <GlassCard
+                  className={cn(
+                    'p-4 group relative transition-all',
+                    isDragTarget && 'border-2 !border-dashed !border-primary bg-primary/5',
+                    !isFolderItem && 'cursor-grab active:cursor-grabbing'
+                  )}
+                  onClick={() => handleFileClick(file)}
+                  onDragOver={isFolderItem ? handleDragOver : undefined}
+                  onDragEnter={isFolderItem ? (e: React.DragEvent) => handleFolderDragEnter(e, file.id) : undefined}
+                  onDragLeave={isFolderItem ? handleFolderDragLeave : undefined}
+                  onDrop={isFolderItem ? (e: React.DragEvent) => handleFolderDrop(e, file.id) : undefined}
+                >
                   <FileActions file={file} />
                   <div className="flex flex-col items-center text-center gap-3">
-                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', isFolder ? 'bg-primary/10' : 'bg-secondary/50')}>
-                      <Icon className={cn('h-5 w-5', isFolder ? 'text-primary' : 'text-muted-foreground')} />
+                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', isFolderItem ? 'bg-primary/10' : 'bg-secondary/50')}>
+                      <Icon className={cn('h-5 w-5', isFolderItem ? 'text-primary' : 'text-muted-foreground')} />
                     </div>
                     <div className="w-full">
+                      {isDragTarget && (
+                        <p className="text-[10px] text-primary font-medium mb-1">Drop here</p>
+                      )}
                       <p className="text-xs font-medium text-foreground truncate">{file.name}</p>
                       <div className="flex items-center justify-center gap-2 mt-1">
                         {file.size && <span className="text-[10px] font-mono text-muted-foreground">{file.size}</span>}
-                        {isFolder && <span className="text-[10px] font-mono text-muted-foreground">{file.items} items</span>}
-                        {!isFolder && (
+                        {isFolderItem && <span className="text-[10px] font-mono text-muted-foreground">{file.items} items</span>}
+                        {!isFolderItem && (
                           <span className={cn('text-[10px] font-mono px-1.5 py-0.5 rounded', typeBadgeColors[file.type] || 'bg-muted text-muted-foreground')}>
                             {file.type.toUpperCase()}
                           </span>
@@ -295,37 +428,52 @@ const Files = () => {
             <tbody>
               {filtered.map((file) => {
                 const Icon = typeIcons[file.type] || File;
-                const isFolder = file.type === 'folder';
+                const isFolderItem = isFolder(file);
+                const isDragging = draggingId === file.id;
+                const isDragTarget = dragOverTarget === file.id && isFolderItem;
+
                 return (
                   <tr
                     key={file.id}
-                    className="border-b border-border/50 hover:bg-secondary/20 transition-colors cursor-pointer group"
+                    className={cn(
+                      'border-b border-border/50 hover:bg-secondary/20 transition-all cursor-pointer group',
+                      isDragTarget && 'bg-primary/5 outline outline-2 outline-dashed outline-primary',
+                      isDragging && 'opacity-50',
+                    )}
                     onClick={() => handleFileClick(file)}
+                    draggable={!isFolderItem}
+                    onDragStart={!isFolderItem ? (e) => handleDragStart(e, file.id) : undefined}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={isFolderItem ? handleDragOver : undefined}
+                    onDragEnter={isFolderItem ? (e) => handleFolderDragEnter(e, file.id) : undefined}
+                    onDragLeave={isFolderItem ? handleFolderDragLeave : undefined}
+                    onDrop={isFolderItem ? (e) => handleFolderDrop(e, file.id) : undefined}
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <Icon className={cn('h-4 w-4 shrink-0', isFolder ? 'text-primary' : 'text-muted-foreground')} />
+                        <Icon className={cn('h-4 w-4 shrink-0', isFolderItem ? 'text-primary' : 'text-muted-foreground')} />
                         <span className="text-xs font-medium text-foreground truncate">{file.name}</span>
+                        {isDragTarget && <span className="text-[10px] text-primary font-medium">Drop here</span>}
                       </div>
                     </td>
                     <td className="px-4 py-3 hidden sm:table-cell">
                       <span className="text-xs font-mono text-muted-foreground">
-                        {file.size || (isFolder ? `${file.items} items` : '--')}
+                        {file.size || (isFolderItem ? `${file.items} items` : '--')}
                       </span>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
-                      {!isFolder && (
+                      {!isFolderItem && (
                         <span className={cn('text-[10px] font-mono px-1.5 py-0.5 rounded', typeBadgeColors[file.type] || 'bg-muted text-muted-foreground')}>
                           {file.type.toUpperCase()}
                         </span>
                       )}
-                      {isFolder && <span className="text-[10px] font-mono text-muted-foreground">Folder</span>}
+                      {isFolderItem && <span className="text-[10px] font-mono text-muted-foreground">Folder</span>}
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs font-mono text-muted-foreground">{file.date}</span>
                     </td>
                     <td className="px-2">
-                      {!isFolder && (
+                      {!isFolderItem && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button
