@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="CGIAR AI Co-Scientist API",
     version="1.0.0",
-    description="Main Backend - Auth, CRUD, File Manager, Agent Proxy",
+    description="Backend Principal for the AI Co-Scientist research platform",
 )
 
 app.add_middleware(
@@ -33,6 +33,7 @@ app.include_router(dashboard.router)
 app.include_router(users.router)
 
 
+@app.get("/health", tags=["health"])
 @app.get("/api/health", tags=["health"])
 async def health_check():
     """Health check endpoint. No authentication required."""

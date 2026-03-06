@@ -59,6 +59,45 @@ async def get_usage(user: User = Depends(get_current_user)):
     ]
 
 
+@router.get("/activity")
+async def get_activity(user: User = Depends(get_current_user)):
+    """Get recent agent activity feed for the dashboard."""
+    return {
+        "recent": [
+            {
+                "agent": "Literature Analyst",
+                "action": "Completed systematic review on drought-resistant wheat",
+                "timestamp": "2026-03-04T10:30:00Z",
+            },
+            {
+                "agent": "Data Harmonizer",
+                "action": "Processed 3 field trial datasets from Kenya",
+                "timestamp": "2026-03-05T14:15:00Z",
+            },
+            {
+                "agent": "Hypothesis Generator",
+                "action": "Generated 5 ranked hypotheses for maize drought tolerance",
+                "timestamp": "2026-03-05T15:30:00Z",
+            },
+            {
+                "agent": "Peer Reviewer",
+                "action": "Reviewed hypothesis report on maize yield optimization",
+                "timestamp": "2026-03-05T16:45:00Z",
+            },
+            {
+                "agent": "Experiment Designer",
+                "action": "Generated field trial protocol for ZmNAC111 drought study",
+                "timestamp": "2026-03-05T17:00:00Z",
+            },
+            {
+                "agent": "Report Synthesizer",
+                "action": "Compiled drought tolerance research pipeline report",
+                "timestamp": "2026-03-06T09:00:00Z",
+            },
+        ]
+    }
+
+
 @router.get("/recent-activity", response_model=List[ActivityItem])
 async def get_recent_activity(user: User = Depends(get_current_user)):
     """Get the last 10 activities for the current user across sessions and workflows."""

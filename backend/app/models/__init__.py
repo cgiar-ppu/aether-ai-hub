@@ -43,12 +43,20 @@ class WorkflowStep(BaseModel):
     confidence: Optional[ConfidenceLevel] = None
 
 
+class AgentRole(str, Enum):
+    ORCHESTRATOR = "orchestrator"
+    SUBAGENT = "subagent"
+
+
 class Agent(BaseModel):
     id: str
     name: str
     type: AgentType
+    model: str = "claude-sonnet-4"
+    role: AgentRole = AgentRole.SUBAGENT
     description: str
     status: str = "available"
+    tools: List[str] = []
     capabilities: List[str] = []
     example_prompts: List[str] = []
     icon: str = ""
