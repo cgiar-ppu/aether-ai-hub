@@ -34,6 +34,32 @@ const AgentChat = () => {
   const agentMessages = chatMessages.filter(m => m.agentId === selectedAgent.id);
   const agentTools = agentToolsMap[selectedAgent.id] || [];
 
+  // Parse message content for code blocks
+  const renderMessageContent = (content: string) => {
+    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      // Text before code block
+      if (match.index > lastIndex) {
+        parts.push(<span key={`t-${lastIndex}`}>{content.slice(lastIndex, match.index)}</span>);
+      }
+      const language = match[1] || 'code';
+      const code = match[2].trim();
+      parts.push(<CodeBlock key={`c-${match.index}`} language={language} code={code} />);
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Remaining text after last code block
+    if (lastIndex < content.length) {
+      parts.push(<span key={`t-${lastIndex}`}>{content.slice(lastIndex)}</span>);
+    }
+
+    return parts.length > 0 ? parts : content;
+  };
+
   // Reset config when agent changes
   useEffect(() => {
     setSystemPrompt(selectedAgent.systemPrompt);
