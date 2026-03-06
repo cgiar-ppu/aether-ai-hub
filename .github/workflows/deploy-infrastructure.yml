@@ -34,6 +34,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-1
 
+      - name: CDK Bootstrap
+        working-directory: infrastructure/cdk
+        run: cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/eu-west-1
+
       - name: CDK Synth
         working-directory: infrastructure/cdk
         run: cdk synth
