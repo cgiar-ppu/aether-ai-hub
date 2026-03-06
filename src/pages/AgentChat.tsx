@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { Send, ArrowLeft, Settings2, X } from 'lucide-react';
 import { agents, chatMessages, agentToolsMap } from '@/data/mockData';
+import CodeBlock from '@/components/CodeBlock';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -185,7 +186,7 @@ const AgentChat = () => {
                     ? 'bg-primary text-primary-foreground rounded-br-md'
                     : 'glass rounded-bl-md'
                 )}>
-                  {msg.content}
+                  {renderMessageContent(msg.content)}
                 </div>
 
                 {msg.toolUsed && (
