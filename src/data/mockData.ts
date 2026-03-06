@@ -89,25 +89,96 @@ export const orchestrator: Orchestrator = {
   name: 'AI Co-Scientist Orchestrator',
   model: 'Claude Opus 4.6',
   status: 'active',
-  description: 'Central orchestrator that coordinates all sub-agents, manages task delegation, monitors progress, and synthesizes results across the research pipeline.',
+  description: 'Central intelligence that coordinates all research subagents, decomposes complex research questions, delegates tasks to specialized subagents, and synthesizes final results for CGIAR Food, Land & Water research.',
 };
 
 export const agents: Agent[] = [
-  { id: '1', name: 'Literature Analyst', type: 'NLP', model: 'Claude Sonnet 4', description: 'Scans and synthesizes research papers from global agricultural databases.', status: 'active', tasks: 234, successRate: 96.2, avgTime: '2.4m', tags: ['NLP', 'Research', 'Analysis'], tools: ['web_search', 'file_read', 'memory_store'], lastActive: '3 min ago', avatarHue: 199 },
-  { id: '2', name: 'Data Harmonizer', type: 'Data Processing', model: 'Claude Sonnet 4', description: 'Normalizes and merges heterogeneous datasets across CGIAR centers.', status: 'active', tasks: 189, successRate: 98.1, avgTime: '5.1m', tags: ['Data', 'ETL', 'Integration'], tools: ['data_transform', 'schema_validate', 'file_write'], lastActive: '12 min ago', avatarHue: 262 },
-  { id: '3', name: 'Hypothesis Generator', type: 'Reasoning', model: 'Claude Opus 4.6', description: 'Proposes novel research hypotheses based on literature gaps and data patterns.', status: 'active', tasks: 67, successRate: 87.5, avgTime: '8.3m', tags: ['AI', 'Reasoning', 'Discovery'], tools: ['web_search', 'reasoning_engine', 'memory_store'], lastActive: '1 hr ago', avatarHue: 142 },
-  { id: '4', name: 'Experiment Designer', type: 'Planning', model: 'Claude Sonnet 4', description: 'Creates experimental protocols with statistical power analysis and resource optimization.', status: 'active', tasks: 45, successRate: 91.8, avgTime: '12.6m', tags: ['Planning', 'Statistics', 'Design'], tools: ['calculator', 'file_write', 'template_engine'], lastActive: '2 days ago', avatarHue: 38 },
-  { id: '5', name: 'Peer Reviewer', type: 'Review', model: 'Claude Opus 4.6', description: 'Provides detailed peer review feedback on manuscripts and proposals.', status: 'active', tasks: 156, successRate: 94.7, avgTime: '6.8m', tags: ['Review', 'Quality', 'NLP'], tools: ['file_read', 'web_search', 'annotation_tool'], lastActive: '30 min ago', avatarHue: 340 },
-  { id: '6', name: 'Report Synthesizer', type: 'Writing', model: 'Claude Sonnet 4', description: 'Generates comprehensive reports from multi-source analysis results.', status: 'active', tasks: 89, successRate: 92.3, avgTime: '15.2m', tags: ['Writing', 'Synthesis', 'Reports'], tools: ['file_read', 'file_write', 'chart_generator'], lastActive: '5 hr ago', avatarHue: 180 },
+  {
+    id: '1', name: 'Literature Analyst', type: 'NLP', model: 'Claude Sonnet 4',
+    description: 'Analyzes scientific literature from global agricultural databases, extracts key findings, identifies research gaps, and synthesizes systematic reviews on crop science topics for CGIAR research programs.',
+    status: 'active', tasks: 234, successRate: 96, avgTime: '2.4m',
+    tags: ['NLP', 'Research', 'Analysis'],
+    tools: ['web_search', 'file_read', 'memory_store'],
+    lastActive: '2 days ago', avatarHue: 199,
+  },
+  {
+    id: '2', name: 'Data Harmonizer', type: 'Data Processing', model: 'Claude Sonnet 4',
+    description: 'Processes and harmonizes experimental datasets from multiple sources, cleans data, standardizes formats, runs statistical analyses, and generates visualizations for agricultural research data.',
+    status: 'active', tasks: 189, successRate: 94, avgTime: '5.1m',
+    tags: ['Data', 'ETL', 'Integration'],
+    tools: ['bash', 'file_read', 'file_write'],
+    lastActive: '1 day ago', avatarHue: 262,
+  },
+  {
+    id: '3', name: 'Hypothesis Generator', type: 'Reasoning', model: 'Claude Sonnet 4',
+    description: 'Generates novel research hypotheses by cross-referencing existing literature, experimental data, and domain knowledge. Identifies unexplored connections in crop science and agricultural systems.',
+    status: 'active', tasks: 67, successRate: 91, avgTime: '8.3m',
+    tags: ['AI', 'Reasoning', 'Discovery'],
+    tools: ['memory_read', 'web_search'],
+    lastActive: '3 days ago', avatarHue: 142,
+  },
+  {
+    id: '4', name: 'Experiment Designer', type: 'Planning', model: 'Claude Sonnet 4',
+    description: 'Designs experimental protocols with statistical power analysis, randomization schemes, treatment structures, and resource optimization for field trials and laboratory studies.',
+    status: 'active', tasks: 45, successRate: 93, avgTime: '12.6m',
+    tags: ['Planning', 'Statistics', 'Design'],
+    tools: ['bash', 'file_write'],
+    lastActive: '4 days ago', avatarHue: 38,
+  },
+  {
+    id: '5', name: 'Peer Reviewer', type: 'Review', model: 'Claude Sonnet 4',
+    description: 'Reviews research outputs for methodological rigor, statistical validity, logical consistency, and alignment with CGIAR standards. Provides structured feedback and improvement suggestions.',
+    status: 'active', tasks: 156, successRate: 97, avgTime: '6.8m',
+    tags: ['Review', 'Quality', 'NLP'],
+    tools: ['memory_read', 'file_read'],
+    lastActive: '1 day ago', avatarHue: 340,
+  },
+  {
+    id: '6', name: 'Report Synthesizer', type: 'Writing', model: 'Claude Sonnet 4',
+    description: 'Compiles research findings into structured reports, policy briefs, donor summaries, and publication-ready manuscripts following CGIAR reporting standards and formatting guidelines.',
+    status: 'active', tasks: 89, successRate: 95, avgTime: '15.2m',
+    tags: ['Writing', 'Synthesis', 'Reports'],
+    tools: ['file_read', 'file_write', 'memory_read'],
+    lastActive: '6 days ago', avatarHue: 180,
+  },
 ];
 
 export const chatMessages: ChatMessage[] = [
-  { id: 'm1', agentId: '1', role: 'user', content: 'Search for recent papers on drought-resistant wheat varieties published in the last 2 years.', timestamp: '10:32 AM' },
-  { id: 'm2', agentId: '1', role: 'agent', content: 'I found 47 papers matching your query across PubMed, Scopus, and CGIAR repositories. The top 5 most cited papers focus on CRISPR-edited drought tolerance genes in Triticum aestivum. Shall I generate a summary table?', timestamp: '10:33 AM', confidence: 'high', toolUsed: 'web_search("drought-resistant wheat 2024-2026")' },
-  { id: 'm3', agentId: '1', role: 'user', content: 'Yes, and highlight any papers from CIMMYT researchers.', timestamp: '10:34 AM' },
-  { id: 'm4', agentId: '1', role: 'agent', content: 'Here is the summary table with 47 papers. I identified 12 papers with CIMMYT-affiliated authors, highlighted in the results. Notable finding: 3 papers describe a novel TaDREB1 gene variant showing 23% improved water-use efficiency under controlled conditions.', timestamp: '10:35 AM', confidence: 'high', toolUsed: 'file_read("cimmyt_author_index.json")' },
-  { id: 'm5', agentId: '1', role: 'user', content: 'What is the confidence level on the water-use efficiency claim?', timestamp: '10:36 AM' },
-  { id: 'm6', agentId: '1', role: 'agent', content: 'The 23% improvement claim is supported by 2 independent field trials (Kenya, 2025 and India, 2024) with sample sizes of n=240 and n=180 respectively. However, one replication study from Brazil showed only 15% improvement, suggesting environmental factors play a significant role. I would rate this as medium confidence until more replication data is available.', timestamp: '10:37 AM', confidence: 'medium' },
+  {
+    id: 'm1', agentId: '1', role: 'user',
+    content: 'What are the latest publications on drought resistant wheat varieties published in 2025?',
+    timestamp: '2 days ago',
+  },
+  {
+    id: 'm2', agentId: '1', role: 'agent',
+    content: "I'll search for recent publications on drought-resistant wheat varieties. Let me look through the major agricultural journals.",
+    timestamp: '2 days ago',
+    confidence: 'high',
+    toolUsed: 'web_search("drought resistant wheat varieties 2025 research papers")',
+  },
+  {
+    id: 'm3', agentId: '1', role: 'agent',
+    content: "I found 47 relevant publications across PubMed, Scopus, and CGIAR repositories. Here are the key findings:\n\n1. **Enhanced Root Architecture** — A CIMMYT study identified TaDREB1 gene variants showing 23% improved water-use efficiency in field trials across Kenya and India (n=420).\n\n2. **Gene Editing Approaches** — Three papers describe CRISPR-Cas9 modifications to the TaWRKY transcription factor family, achieving 18% higher grain yield under drought stress.\n\n3. **Phenotyping Advances** — Novel high-throughput phenotyping methods using UAV-based thermal imaging correlated canopy temperature with drought tolerance (r² = 0.87).\n\n4. **Marker-Assisted Selection** — Two independent groups validated a QTL on chromosome 7A associated with osmotic adjustment capacity.\n\n5. **Microbiome Interactions** — Emerging research on rhizosphere bacterial communities enhancing drought resilience through improved soil moisture retention.",
+    timestamp: '2 days ago',
+    confidence: 'high',
+  },
+  {
+    id: 'm4', agentId: '1', role: 'agent',
+    content: 'Findings stored for cross-referencing with other research workflows.',
+    timestamp: '2 days ago',
+    toolUsed: 'memory_store(findings)',
+  },
+  {
+    id: 'm5', agentId: '1', role: 'user',
+    content: 'What is the confidence level on the water-use efficiency claim?',
+    timestamp: '2 days ago',
+  },
+  {
+    id: 'm6', agentId: '1', role: 'agent',
+    content: 'The 23% improvement claim is supported by 2 independent field trials (Kenya, 2025 and India, 2024) with sample sizes of n=240 and n=180 respectively. However, one replication study from Brazil showed only 15% improvement, suggesting environmental factors play a significant role. I would rate this as medium confidence until more replication data is available.',
+    timestamp: '2 days ago',
+    confidence: 'medium',
+  },
 ];
 
 export const workflows: Workflow[] = [
@@ -118,7 +189,7 @@ export const workflows: Workflow[] = [
     progress: 66,
     steps: 3,
     created: '2026-02-28',
-    description: 'Automated systematic review pipeline that searches, filters, and synthesizes research literature.',
+    description: 'Automated pipeline for conducting systematic reviews across agricultural databases',
     lastRun: '2 hours ago',
     runCount: 14,
     agentSequence: ['1', '2', '6'],
@@ -139,7 +210,7 @@ export const workflows: Workflow[] = [
     progress: 100,
     steps: 4,
     created: '2026-02-20',
-    description: 'End-to-end pipeline from literature analysis through hypothesis generation to experiment design with peer review.',
+    description: 'End-to-end pipeline from literature review to validated experimental protocol',
     lastRun: '1 day ago',
     runCount: 8,
     agentSequence: ['1', '3', '4', '5'],
@@ -158,17 +229,17 @@ export const workflows: Workflow[] = [
   {
     id: 'w3',
     name: 'Research Report Generation',
-    status: 'draft',
-    progress: 0,
+    status: 'running',
+    progress: 33,
     steps: 3,
     created: '2026-03-01',
-    description: 'Harmonizes datasets, runs peer review validation, and generates comprehensive research reports.',
-    lastRun: 'Never',
-    runCount: 0,
+    description: 'Automated research report compilation with peer review quality assurance',
+    lastRun: '4 hours ago',
+    runCount: 5,
     agentSequence: ['2', '5', '6'],
     nodes: [
-      { id: 'n1', label: 'Data Harmonizer', status: 'pending', icon: 'Database' },
-      { id: 'n2', label: 'Peer Reviewer', status: 'pending', icon: 'CheckCircle' },
+      { id: 'n1', label: 'Data Harmonizer', status: 'completed', duration: '4m 20s', icon: 'Database' },
+      { id: 'n2', label: 'Peer Reviewer', status: 'running', duration: '3m 15s', icon: 'CheckCircle' },
       { id: 'n3', label: 'Report Synthesizer', status: 'pending', icon: 'FileText' },
     ],
     edges: [
@@ -185,7 +256,7 @@ export const activityData = Array.from({ length: 14 }, (_, i) => ({
 }));
 
 export const recentActivities: Activity[] = [
-  { id: '1', type: 'agent', description: 'Literature Analyst completed batch analysis of 42 papers on drought resistance', timestamp: '2 min ago' },
+  { id: '1', type: 'agent', description: 'Literature Analyst completed systematic review of 42 papers on drought resistance', timestamp: '2 min ago' },
   { id: '2', type: 'success', description: 'Systematic Literature Review workflow passed data harmonization step', timestamp: '8 min ago' },
   { id: '3', type: 'warning', description: 'Data Harmonizer detected schema mismatch in CIMMYT soil dataset', timestamp: '15 min ago' },
   { id: '4', type: 'agent', description: 'Hypothesis Generator proposed 3 new research directions for climate adaptation', timestamp: '32 min ago' },
@@ -203,18 +274,21 @@ export const files: FileItem[] = [
   { id: 'f4', name: 'Research Proposal Draft.docx', type: 'docx', size: '856 KB', date: '2026-03-01' },
   { id: 'f5', name: 'Field Trial Results.csv', type: 'csv', size: '3.2 MB', date: '2026-02-20' },
   { id: 'f6', name: 'Satellite Imagery Analysis.png', type: 'png', size: '8.1 MB', date: '2026-02-18' },
-  { id: 'f7', name: 'Annual Report 2025.pdf', type: 'pdf', size: '5.6 MB', date: '2026-01-15' },
-  { id: 'f8', name: 'Experiment Protocol Notes.md', type: 'md', size: '124 KB', date: '2026-03-02' },
-  { id: 'f9', name: 'Budget Allocation 2026.xlsx', type: 'xlsx', size: '1.1 MB', date: '2026-02-15' },
-  { id: 'f10', name: 'Peer Review Feedback.md', type: 'md', size: '89 KB', date: '2026-03-03' },
-  { id: 'f11', name: 'Climate Data Summary.csv', type: 'csv', size: '6.4 MB', date: '2026-02-10' },
-  // Folder contents
-  { id: 'fp1', name: 'Drought Resistance Meta-Analysis.pdf', type: 'pdf', size: '3.1 MB', date: '2026-02-27', parentId: 'f0' },
-  { id: 'fp2', name: 'Wheat Genomics Review 2025.pdf', type: 'pdf', size: '4.2 MB', date: '2026-02-25', parentId: 'f0' },
-  { id: 'fp3', name: 'CIMMYT Annual Review.pdf', type: 'pdf', size: '8.7 MB', date: '2026-02-20', parentId: 'f0' },
-  { id: 'fp4', name: 'Soil pH Global Dataset.csv', type: 'csv', size: '22.4 MB', date: '2026-02-28', parentId: 'f1' },
-  { id: 'fp5', name: 'Rainfall Patterns 2020-2025.xlsx', type: 'xlsx', size: '15.6 MB', date: '2026-02-26', parentId: 'f1' },
-  { id: 'fp6', name: 'Crop Yield Multiyear.csv', type: 'csv', size: '9.8 MB', date: '2026-02-22', parentId: 'f1' },
+  { id: 'f7', name: 'Annual Report 2025.pdf', type: 'pdf', size: '5.6 MB', date: '2026-02-15' },
+  { id: 'f8', name: 'wheat_drought_resistance_review_2025.pdf', type: 'pdf', size: '2.4 MB', date: '2026-01-30' },
+  { id: 'f9', name: 'field_trial_data_kenya_q1.csv', type: 'csv', size: '890 KB', date: '2026-02-10' },
+  { id: 'f10', name: 'hypothesis_report_maize_yield.md', type: 'md', size: '156 KB', date: '2026-02-22' },
+  { id: 'f11', name: 'experiment_protocol_rice_salinity.pdf', type: 'pdf', size: '1.1 MB', date: '2026-02-05' },
+  // Research Papers folder contents
+  { id: 'fp1', name: 'Drought Resistant Wheat Varieties - Systematic Review.pdf', type: 'pdf', size: '3.2 MB', date: '2026-02-27', parentId: 'f0' },
+  { id: 'fp2', name: 'Banana Disease Detection ML Paper.pdf', type: 'pdf', size: '1.8 MB', date: '2026-02-25', parentId: 'f0' },
+  { id: 'fp3', name: 'Sweet Potato Genomics Study 2025.pdf', type: 'pdf', size: '2.1 MB', date: '2026-02-20', parentId: 'f0' },
+  { id: 'fp4', name: 'CIMMYT Annual Review.pdf', type: 'pdf', size: '8.7 MB', date: '2026-02-18', parentId: 'f0' },
+  { id: 'fp5', name: 'Wheat Genomics Review 2025.pdf', type: 'pdf', size: '4.2 MB', date: '2026-02-15', parentId: 'f0' },
+  // Datasets folder contents
+  { id: 'fd1', name: 'kenya_maize_field_trial_2025.csv', type: 'csv', size: '4.5 MB', date: '2026-02-28', parentId: 'f1' },
+  { id: 'fd2', name: 'soil_moisture_sensors_q1.csv', type: 'csv', size: '8.2 MB', date: '2026-02-26', parentId: 'f1' },
+  { id: 'fd3', name: 'crop_yield_historical_data.xlsx', type: 'xlsx', size: '12.3 MB', date: '2026-02-22', parentId: 'f1' },
 ];
 
 export const teamMembers: TeamMember[] = [
