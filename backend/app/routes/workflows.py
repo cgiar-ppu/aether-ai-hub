@@ -80,7 +80,7 @@ async def get_workflow(
     """Get detailed information about a specific workflow including step statuses."""
     item = await dynamo_service.get_item(
         settings.DYNAMODB_WORKFLOWS_TABLE,
-        {"workflow_id": workflow_id},
+        {"workflow_id": workflow_id, "user_id": user.id},
     )
     if not item:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -107,7 +107,7 @@ async def delete_workflow(
     """Cancel and delete a workflow."""
     item = await dynamo_service.get_item(
         settings.DYNAMODB_WORKFLOWS_TABLE,
-        {"workflow_id": workflow_id},
+        {"workflow_id": workflow_id, "user_id": user.id},
     )
     if not item:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -116,7 +116,7 @@ async def delete_workflow(
 
     await dynamo_service.delete_item(
         settings.DYNAMODB_WORKFLOWS_TABLE,
-        {"workflow_id": workflow_id},
+        {"workflow_id": workflow_id, "user_id": user.id},
     )
     return {"status": "deleted", "workflow_id": workflow_id}
 
@@ -132,7 +132,7 @@ async def execute_workflow(
     """
     item = await dynamo_service.get_item(
         settings.DYNAMODB_WORKFLOWS_TABLE,
-        {"workflow_id": workflow_id},
+        {"workflow_id": workflow_id, "user_id": user.id},
     )
     if not item:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -164,17 +164,17 @@ async def execute_workflow(
 
     await dynamo_service.update_item(
         settings.DYNAMODB_WORKFLOWS_TABLE,
-        {"workflow_id": workflow_id},
+        {"workflow_id": workflow_id, "user_id": user.id},
         {"status": "running", "updated_at": datetime.now(timezone.utc).isoformat()},
     )
 
     result = await agent_proxy.execute_workflow(
-        active_session["session_id"], workflow
+        active_session["session_id"], user.id, workflow
     )
 
     await dynamo_service.update_item(
         settings.DYNAMODB_WORKFLOWS_TABLE,
-        {"workflow_id": workflow_id},
+        {"workflow_id": workflow_id, "user_id": user.id},
         {"status": "completed", "updated_at": datetime.now(timezone.utc).isoformat()},
     )
 

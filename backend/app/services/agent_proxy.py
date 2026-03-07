@@ -83,6 +83,13 @@ class AgentProxy:
             f"Lambda {function_name} failed after {retries} attempts: {last_error}"
         )
 
+    async def _get_session(self, session_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Look up a session from DynamoDB using both composite key parts."""
+        return await dynamo_service.get_item(
+            settings.DYNAMODB_SESSIONS_TABLE,
+            {"session_id": session_id, "user_id": user_id},
+        )
+
     async def provision_container(self, user_id: str, session_id: str) -> Session:
         """Provision a new agent container via Lambda.
 
@@ -139,13 +146,10 @@ class AgentProxy:
         return session
 
     async def relay_websocket(
-        self, frontend_ws: WebSocket, session_id: str
+        self, frontend_ws: WebSocket, session_id: str, user_id: str = "guest"
     ) -> None:
         """Bidirectional WebSocket relay between frontend and agent container."""
-        item = await dynamo_service.get_item(
-            settings.DYNAMODB_SESSIONS_TABLE,
-            {"session_id": session_id},
-        )
+        item = await self._get_session(session_id, user_id)
         if not item or not item.get("container_url"):
             await frontend_ws.close(code=1008, reason="Session not found")
             return
@@ -200,19 +204,14 @@ class AgentProxy:
             except Exception:
                 pass
 
-    async def check_status(self, session_id: str) -> Dict[str, Any]:
+    async def check_status(
+        self, session_id: str, user_id: str = "guest"
+    ) -> Dict[str, Any]:
         """Check the status of an agent container via Lambda.
 
-        First looks up the session in DynamoDB to find the userId,
-        then calls the status Lambda with the correct format.
+        Calls the status Lambda with the userId, then updates DynamoDB
+        if the container has become ready.
         """
-        # Look up session to get user_id for the status Lambda
-        item = await dynamo_service.get_item(
-            settings.DYNAMODB_SESSIONS_TABLE,
-            {"session_id": session_id},
-        )
-        user_id = item.get("user_id", "guest") if item else "guest"
-
         result = await self._invoke_lambda(
             settings.LAMBDA_STATUS_FUNCTION,
             {"pathParameters": {"userId": user_id}},
@@ -225,10 +224,10 @@ class AgentProxy:
         healthy = result.get("healthy", False)
 
         # Update session in DynamoDB if container is now ready
-        if item and container_url and status in ("ready", "running"):
+        if container_url and status in ("ready", "running"):
             await dynamo_service.update_item(
                 settings.DYNAMODB_SESSIONS_TABLE,
-                {"session_id": session_id},
+                {"session_id": session_id, "user_id": user_id},
                 {
                     "container_url": container_url,
                     "status": SessionStatus.ACTIVE.value,
@@ -241,15 +240,10 @@ class AgentProxy:
             "healthy": healthy,
         }
 
-    async def deprovision(self, session_id: str) -> bool:
+    async def deprovision(
+        self, session_id: str, user_id: str = "guest"
+    ) -> bool:
         """Deprovision an agent container and update DynamoDB."""
-        # Look up session to get user_id for the deprovision Lambda
-        item = await dynamo_service.get_item(
-            settings.DYNAMODB_SESSIONS_TABLE,
-            {"session_id": session_id},
-        )
-        user_id = item.get("user_id", "guest") if item else "guest"
-
         try:
             await self._invoke_lambda(
                 settings.LAMBDA_DEPROVISION_FUNCTION,
@@ -260,19 +254,16 @@ class AgentProxy:
 
         await dynamo_service.update_item(
             settings.DYNAMODB_SESSIONS_TABLE,
-            {"session_id": session_id},
+            {"session_id": session_id, "user_id": user_id},
             {"status": SessionStatus.TERMINATED.value},
         )
         return True
 
     async def execute_workflow(
-        self, session_id: str, workflow: Workflow
+        self, session_id: str, user_id: str, workflow: Workflow
     ) -> Dict[str, Any]:
         """Execute a workflow on the agent container via HTTP POST."""
-        item = await dynamo_service.get_item(
-            settings.DYNAMODB_SESSIONS_TABLE,
-            {"session_id": session_id},
-        )
+        item = await self._get_session(session_id, user_id)
         if not item or not item.get("container_url"):
             raise RuntimeError(f"Session {session_id} not found or has no container")
 

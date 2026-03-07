@@ -38,7 +38,7 @@ async def get_session_status(
     user: User = Depends(get_optional_user),
 ):
     """Check the current status of a chat session and its container."""
-    status = await agent_proxy.check_status(session_id)
+    status = await agent_proxy.check_status(session_id, user.id)
     return status
 
 
@@ -65,18 +65,14 @@ async def websocket_chat(
     # Verify session is active
     item = await dynamo_service.get_item(
         settings.DYNAMODB_SESSIONS_TABLE,
-        {"session_id": session_id},
+        {"session_id": session_id, "user_id": user_id},
     )
     if not item or item.get("status") != SessionStatus.ACTIVE.value:
         await websocket.close(code=1008, reason="Session not active")
         return
 
-    if token and item.get("user_id") != user_id:
-        await websocket.close(code=1008, reason="Unauthorized")
-        return
-
     await websocket.accept()
-    await agent_proxy.relay_websocket(websocket, session_id)
+    await agent_proxy.relay_websocket(websocket, session_id, user_id)
 
 
 @router.post("/stop/{session_id}")
@@ -85,7 +81,7 @@ async def stop_chat(
     user: User = Depends(get_optional_user),
 ):
     """Stop a chat session and deprovision its agent container."""
-    success = await agent_proxy.deprovision(session_id)
+    success = await agent_proxy.deprovision(session_id, user.id)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to stop session")
     return {"status": "terminated", "session_id": session_id}
@@ -99,13 +95,10 @@ async def get_chat_history(
     """Retrieve chat history for a session from the agent container."""
     item = await dynamo_service.get_item(
         settings.DYNAMODB_SESSIONS_TABLE,
-        {"session_id": session_id},
+        {"session_id": session_id, "user_id": user.id},
     )
     if not item or not item.get("container_url"):
         raise HTTPException(status_code=404, detail="Session not found")
-
-    if item.get("user_id") != user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
 
     import httpx
 
