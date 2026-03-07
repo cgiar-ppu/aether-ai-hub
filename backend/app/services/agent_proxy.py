@@ -33,7 +33,14 @@ class AgentProxy:
         retries: int = 3,
         timeout: float = 60.0,
     ) -> Dict[str, Any]:
-        """Invoke a Lambda function with retries and exponential backoff."""
+        """Invoke a Lambda function with retries and exponential backoff.
+
+        Lambda functions in the co-scientist-agents stack expect API Gateway
+        format payloads and return API Gateway format responses:
+          Request:  {"body": "{\"userId\": ...}"}  or  {"pathParameters": {...}}
+          Response: {"statusCode": 200, "body": "{...}"}
+        This method handles the response parsing automatically.
+        """
         last_error: Optional[Exception] = None
 
         for attempt in range(retries):
@@ -47,6 +54,17 @@ class AgentProxy:
                 result = json.loads(response["Payload"].read().decode())
                 if response.get("FunctionError"):
                     raise RuntimeError(f"Lambda error: {result}")
+
+                # Parse API Gateway response format
+                if "statusCode" in result and "body" in result:
+                    status_code = result["statusCode"]
+                    body = json.loads(result["body"]) if isinstance(result["body"], str) else result["body"]
+                    if status_code >= 400:
+                        raise RuntimeError(
+                            f"Lambda returned {status_code}: {body.get('error', body)}"
+                        )
+                    return body
+
                 return result
             except Exception as e:
                 last_error = e
@@ -68,22 +86,40 @@ class AgentProxy:
     async def provision_container(self, user_id: str, session_id: str) -> Session:
         """Provision a new agent container via Lambda.
 
-        Invokes the provision Lambda, saves the session to DynamoDB,
-        and returns the session with container URL.
+        Invokes the provision Lambda (API Gateway format), saves the session
+        to DynamoDB, and returns the session with container URL.
         """
+        # Lambda expects API Gateway format with camelCase field names
         result = await self._invoke_lambda(
             settings.LAMBDA_PROVISION_FUNCTION,
-            {"user_id": user_id, "session_id": session_id},
+            {
+                "body": json.dumps({
+                    "userId": user_id,
+                    "sessionId": session_id,
+                    "agentId": "default",
+                }),
+            },
         )
 
+        # Lambda returns camelCase: appUrl, userId, coldStart
+        # Strip protocol prefix — relay_websocket prepends ws:// itself
+        raw_url = result.get("appUrl", "")
+        container_url = raw_url.replace("http://", "").replace("https://", "")
+        lambda_status = result.get("status", "provisioning")
+
         now = datetime.now(timezone.utc)
+        status = (
+            SessionStatus.ACTIVE
+            if lambda_status in ("ready", "active")
+            else SessionStatus.PROVISIONING
+        )
         session = Session(
             id=session_id,
             user_id=user_id,
-            container_url=result.get("container_url"),
-            container_id=result.get("container_id"),
-            instance_id=result.get("instance_id"),
-            status=SessionStatus.ACTIVE,
+            container_url=container_url or None,
+            container_id=result.get("containerId"),
+            instance_id=result.get("instanceId"),
+            status=status,
             created_at=now,
         )
 
@@ -92,7 +128,7 @@ class AgentProxy:
             {
                 "session_id": session.id,
                 "user_id": user_id,
-                "container_url": session.container_url or "",
+                "container_url": container_url,
                 "container_id": session.container_id or "",
                 "instance_id": session.instance_id or "",
                 "status": session.status.value,
@@ -165,23 +201,62 @@ class AgentProxy:
                 pass
 
     async def check_status(self, session_id: str) -> Dict[str, Any]:
-        """Check the status of an agent container via Lambda."""
-        result = await self._invoke_lambda(
-            settings.LAMBDA_STATUS_FUNCTION,
+        """Check the status of an agent container via Lambda.
+
+        First looks up the session in DynamoDB to find the userId,
+        then calls the status Lambda with the correct format.
+        """
+        # Look up session to get user_id for the status Lambda
+        item = await dynamo_service.get_item(
+            settings.DYNAMODB_SESSIONS_TABLE,
             {"session_id": session_id},
         )
+        user_id = item.get("user_id", "guest") if item else "guest"
+
+        result = await self._invoke_lambda(
+            settings.LAMBDA_STATUS_FUNCTION,
+            {"pathParameters": {"userId": user_id}},
+        )
+
+        # Map Lambda response fields (camelCase → snake_case)
+        raw_url = result.get("appUrl", "")
+        container_url = raw_url.replace("http://", "").replace("https://", "")
+        status = result.get("status", "unknown")
+        healthy = result.get("healthy", False)
+
+        # Update session in DynamoDB if container is now ready
+        if item and container_url and status in ("ready", "running"):
+            await dynamo_service.update_item(
+                settings.DYNAMODB_SESSIONS_TABLE,
+                {"session_id": session_id},
+                {
+                    "container_url": container_url,
+                    "status": SessionStatus.ACTIVE.value,
+                },
+            )
+
         return {
-            "status": result.get("status", "unknown"),
-            "container_url": result.get("container_url"),
-            "uptime": result.get("uptime"),
+            "status": "active" if healthy else status,
+            "container_url": container_url or None,
+            "healthy": healthy,
         }
 
     async def deprovision(self, session_id: str) -> bool:
         """Deprovision an agent container and update DynamoDB."""
-        await self._invoke_lambda(
-            settings.LAMBDA_DEPROVISION_FUNCTION,
+        # Look up session to get user_id for the deprovision Lambda
+        item = await dynamo_service.get_item(
+            settings.DYNAMODB_SESSIONS_TABLE,
             {"session_id": session_id},
         )
+        user_id = item.get("user_id", "guest") if item else "guest"
+
+        try:
+            await self._invoke_lambda(
+                settings.LAMBDA_DEPROVISION_FUNCTION,
+                {"pathParameters": {"userId": user_id}},
+            )
+        except RuntimeError as e:
+            logger.warning("Deprovision Lambda error (non-fatal): %s", e)
 
         await dynamo_service.update_item(
             settings.DYNAMODB_SESSIONS_TABLE,

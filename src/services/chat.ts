@@ -35,14 +35,21 @@ export class ChatService {
 
   /** POST /api/chat/start — provision an agent container and get a session_id */
   async startSession(agentId: string): Promise<StartSessionResponse> {
+    // Convert hyphenated agent IDs to underscore enum values the backend expects
+    const agentType = agentId.replace(/-/g, '_');
     const res = await fetch(`${API_BASE_URL}/api/chat/start`, {
       method: 'POST',
       headers: await this.authHeaders(),
-      body: JSON.stringify({ agent_type: agentId }),
+      body: JSON.stringify({ agent_type: agentType }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new Error(err.detail || `Start session failed (${res.status})`);
+      const message = typeof err.detail === 'string'
+        ? err.detail
+        : Array.isArray(err.detail)
+          ? err.detail.map((e: any) => e.msg || JSON.stringify(e)).join('; ')
+          : err.error || `Start session failed (${res.status})`;
+      throw new Error(message);
     }
     return res.json();
   }
