@@ -2,10 +2,12 @@ import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, RefreshCw, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
 import GlassCard from '@/components/layout/GlassCard';
 import { dashboardStats, activityData, agents, recentActivities, workflows } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+import { dashboardService } from '@/services/dashboard';
+import { useApi } from '@/hooks/useApi';
 
 const container = {
   hidden: { opacity: 0 },
@@ -38,9 +40,27 @@ function CountUp({ value, suffix = '' }: { value: number; suffix?: string }) {
   return <>{count}{suffix}</>;
 }
 
+const mockDashboard = {
+  stats: dashboardStats,
+  activityData,
+  agents,
+  recentActivities,
+  workflows,
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
-  const topAgents = [...agents].sort((a, b) => b.tasks - a.tasks).slice(0, 5);
+  const { data, error, isLive, refetch } = useApi(
+    () => dashboardService.getStats(),
+    mockDashboard,
+  );
+
+  const stats = data?.stats || dashboardStats;
+  const chartData = data?.activityData || activityData;
+  const agentList = data?.agents || agents;
+  const activities = data?.recentActivities || recentActivities;
+  const wfList = data?.workflows || workflows;
+  const topAgents = [...agentList].sort((a: any, b: any) => b.tasks - a.tasks).slice(0, 5);
 
   return (
     <motion.div
@@ -50,11 +70,33 @@ const Dashboard = () => {
       exit={{ opacity: 0, y: -12 }}
       transition={{ duration: 0.3 }}
     >
+      {/* Error Banner */}
+      {error && (
+        <div className="flex items-center gap-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl px-4 py-3">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="text-xs flex-1">{error}</span>
+          <button onClick={refetch} className="flex items-center gap-1 text-xs font-medium hover:underline">
+            <RefreshCw className="h-3 w-3" /> Retry
+          </button>
+        </div>
+      )}
+
       {/* Greeting + Stats */}
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Good morning, Jose</h1>
           <p className="text-sm text-muted-foreground mt-1">6 agents active, 1 workflow running</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {isLive ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono bg-success/10 text-success px-2.5 py-1 rounded-full">
+              <Wifi className="h-3 w-3" /> Live
+            </span>
+          ) : !error ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono bg-muted text-muted-foreground px-2.5 py-1 rounded-full">
+              <WifiOff className="h-3 w-3" /> Using sample data
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -65,7 +107,7 @@ const Dashboard = () => {
         initial="hidden"
         animate="show"
       >
-        {dashboardStats.map((stat) => (
+        {stats.map((stat: any) => (
           <motion.div key={stat.label} variants={item}>
             <GlassCard className="p-4 space-y-2">
               <span className="text-label text-muted-foreground">{stat.label}</span>
@@ -84,7 +126,7 @@ const Dashboard = () => {
               </div>
               <div className="h-6">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={stat.sparkline.map((v, i) => ({ v, i }))}>
+                  <AreaChart data={stat.sparkline.map((v: number, i: number) => ({ v, i }))}>
                     <Area type="monotone" dataKey="v" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.1)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -108,7 +150,7 @@ const Dashboard = () => {
             </div>
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={activityData}>
+                <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
@@ -145,7 +187,7 @@ const Dashboard = () => {
           <GlassCard hoverable={false} className="p-5 h-full">
             <h3 className="text-sm font-semibold text-foreground mb-4">Top Agents</h3>
             <div className="space-y-3">
-              {topAgents.map((agent, i) => (
+              {topAgents.map((agent: any, i: number) => (
                 <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/30 transition-colors cursor-pointer" onClick={() => navigate(`/agents/${agent.id}/chat`)}>
                   <span className={cn('text-xs font-mono w-4', i === 0 ? 'text-primary font-bold' : 'text-muted-foreground')}>
                     {i + 1}
@@ -210,7 +252,7 @@ const Dashboard = () => {
           <GlassCard hoverable={false} className="p-5">
             <h3 className="text-sm font-semibold text-foreground mb-4">Recent Activity</h3>
             <div className="space-y-0">
-              {recentActivities.map((act, i) => (
+              {activities.map((act: any, i: number) => (
                 <motion.div
                   key={act.id}
                   className="flex gap-3 py-2.5"
@@ -226,7 +268,7 @@ const Dashboard = () => {
                       act.type === 'error' && 'bg-destructive',
                       act.type === 'warning' && 'bg-warning',
                     )} />
-                    {i < recentActivities.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
+                    {i < activities.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-foreground leading-relaxed">{act.description}</p>
@@ -244,7 +286,7 @@ const Dashboard = () => {
           <GlassCard hoverable={false} className="p-5">
             <h3 className="text-sm font-semibold text-foreground mb-4">Active Workflows</h3>
             <div className="space-y-3">
-              {workflows.map((wf) => (
+              {wfList.map((wf: any) => (
                 <motion.div
                   key={wf.id}
                   className="glass rounded-xl p-3 cursor-pointer hover:bg-secondary/30 transition-all group"

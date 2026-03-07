@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useRef, useEffect } from 'react';
-import { Send, ArrowLeft, Settings2, X } from 'lucide-react';
-import { agents, chatMessages, agentToolsMap } from '@/data/mockData';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, ArrowLeft, Settings2, X, AlertTriangle } from 'lucide-react';
+import { agents, chatMessages, agentToolsMap, type ChatMessage } from '@/data/mockData';
 import CodeBlock from '@/components/CodeBlock';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -11,11 +11,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { chatService, type ChatWsMessage } from '@/services/chat';
 
 const confidenceColors: Record<string, string> = {
   high: 'bg-success/10 text-success',
   medium: 'bg-warning/10 text-warning',
   low: 'bg-destructive/10 text-destructive',
+  GREEN: 'bg-success/10 text-success',
+  AMBER: 'bg-warning/10 text-warning',
+  RED: 'bg-destructive/10 text-destructive',
 };
 
 const AgentChat = () => {
@@ -29,10 +33,16 @@ const AgentChat = () => {
   const [maxTokens, setMaxTokens] = useState(8192);
   const [temperature, setTemperature] = useState([0.1]);
   const [toolStates, setToolStates] = useState<Record<string, boolean>>({});
+  const [wsConnected, setWsConnected] = useState(false);
+  const [wsError, setWsError] = useState<string | null>(null);
+  const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const agentMessages = chatMessages.filter(m => m.agentId === selectedAgent.id);
+  const mockMessages = chatMessages.filter(m => m.agentId === selectedAgent.id);
   const agentTools = agentToolsMap[selectedAgent.id] || [];
+
+  // Combine mock + live messages
+  const allMessages = [...mockMessages, ...liveMessages];
 
   // Parse message content for code blocks
   const renderMessageContent = (content: string) => {
@@ -42,7 +52,6 @@ const AgentChat = () => {
     let match: RegExpExecArray | null;
 
     while ((match = codeBlockRegex.exec(content)) !== null) {
-      // Text before code block
       if (match.index > lastIndex) {
         parts.push(<span key={`t-${lastIndex}`}>{content.slice(lastIndex, match.index)}</span>);
       }
@@ -52,7 +61,6 @@ const AgentChat = () => {
       lastIndex = match.index + match[0].length;
     }
 
-    // Remaining text after last code block
     if (lastIndex < content.length) {
       parts.push(<span key={`t-${lastIndex}`}>{content.slice(lastIndex)}</span>);
     }
@@ -60,29 +68,110 @@ const AgentChat = () => {
     return parts.length > 0 ? parts : content;
   };
 
+  // Attempt WebSocket connection
+  const connectWs = useCallback(async () => {
+    setWsError(null);
+    try {
+      const sessionId = `session-${selectedAgent.id}-${Date.now()}`;
+      await chatService.connect(
+        sessionId,
+        selectedAgent.id,
+        (msg: ChatWsMessage) => {
+          if (msg.type === 'agent_response' && msg.content) {
+            setIsTyping(false);
+            const newMsg: ChatMessage = {
+              id: `live-${Date.now()}`,
+              agentId: selectedAgent.id,
+              role: 'agent',
+              content: msg.content,
+              timestamp: 'just now',
+              toolUsed: msg.toolUsed,
+              confidence: msg.confidence?.level === 'GREEN' ? 'high'
+                : msg.confidence?.level === 'AMBER' ? 'medium'
+                : msg.confidence?.level === 'RED' ? 'low'
+                : undefined,
+            };
+            setLiveMessages(prev => [...prev, newMsg]);
+          } else if (msg.type === 'tool_use' && msg.toolUsed) {
+            const toolMsg: ChatMessage = {
+              id: `tool-${Date.now()}`,
+              agentId: selectedAgent.id,
+              role: 'agent',
+              content: msg.content || 'Using tool...',
+              timestamp: 'just now',
+              toolUsed: msg.toolUsed,
+            };
+            setLiveMessages(prev => [...prev, toolMsg]);
+          } else if (msg.type === 'error') {
+            setWsError(msg.error || 'Agent returned an error');
+            setIsTyping(false);
+          }
+        },
+        (err) => {
+          setWsError(err);
+          setWsConnected(false);
+        },
+      );
+      setWsConnected(true);
+    } catch {
+      setWsError('Could not connect to agent');
+      setWsConnected(false);
+    }
+  }, [selectedAgent.id]);
+
+  // Try to connect on mount
+  useEffect(() => {
+    connectWs();
+    return () => chatService.disconnect();
+  }, [connectWs]);
+
   // Reset config when agent changes
   useEffect(() => {
     setSystemPrompt(selectedAgent.systemPrompt);
     const states: Record<string, boolean> = {};
     agentTools.forEach(t => { states[t.name] = t.enabled; });
     setToolStates(states);
+    setLiveMessages([]);
+    setWsError(null);
   }, [selectedAgent.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [agentMessages]);
+  }, [allMessages]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsTyping(true), 1000);
-    const timer2 = setTimeout(() => setIsTyping(false), 3000);
-    return () => { clearTimeout(timer); clearTimeout(timer2); };
-  }, [selectedAgent.id]);
+    if (!wsConnected) {
+      const timer = setTimeout(() => setIsTyping(true), 1000);
+      const timer2 = setTimeout(() => setIsTyping(false), 3000);
+      return () => { clearTimeout(timer); clearTimeout(timer2); };
+    }
+  }, [selectedAgent.id, wsConnected]);
 
   const handleSend = () => {
     if (!message.trim()) return;
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      agentId: selectedAgent.id,
+      role: 'user',
+      content: message,
+      timestamp: 'just now',
+    };
+    setLiveMessages(prev => [...prev, userMsg]);
+
+    if (wsConnected) {
+      chatService.send(message);
+      setIsTyping(true);
+    } else {
+      // Show error if not connected
+      setIsTyping(true);
+      setTimeout(() => {
+        setIsTyping(false);
+        if (!wsConnected) {
+          setWsError('Could not connect to agent — messages are not being sent');
+        }
+      }, 1500);
+    }
     setMessage('');
-    setIsTyping(true);
-    setTimeout(() => setIsTyping(false), 2000);
   };
 
   return (
@@ -154,8 +243,10 @@ const AgentChat = () => {
             <div>
               <h2 className="text-sm font-semibold text-foreground">{selectedAgent.name}</h2>
               <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                <span className="text-[10px] text-success font-mono">Online</span>
+                <span className={cn('w-1.5 h-1.5 rounded-full', wsConnected ? 'bg-success' : 'bg-muted-foreground')} />
+                <span className={cn('text-[10px] font-mono', wsConnected ? 'text-success' : 'text-muted-foreground')}>
+                  {wsConnected ? 'Connected' : 'Offline'}
+                </span>
                 <span className="text-[10px] text-muted-foreground ml-2 font-mono">{selectedAgent.model}</span>
               </div>
             </div>
@@ -170,9 +261,18 @@ const AgentChat = () => {
           </Button>
         </div>
 
+        {/* WebSocket Error Banner */}
+        {wsError && (
+          <div className="flex items-center gap-3 bg-destructive/10 border-b border-destructive/20 text-destructive px-6 py-2.5">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span className="text-xs flex-1">{wsError}</span>
+            <button onClick={connectWs} className="text-xs font-medium hover:underline">Retry</button>
+          </div>
+        )}
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {agentMessages.length === 0 && (
+          {allMessages.length === 0 && (
             <div className="flex-1 flex items-center justify-center h-full">
               <div className="text-center">
                 <div
@@ -188,7 +288,7 @@ const AgentChat = () => {
             </div>
           )}
 
-          {agentMessages.map((msg, i) => (
+          {allMessages.map((msg, i) => (
             <motion.div
               key={msg.id}
               initial={{ opacity: 0, y: 8 }}

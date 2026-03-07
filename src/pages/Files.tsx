@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Search, Upload, FileText, FileSpreadsheet, Image, File, Folder, ChevronRight, LayoutGrid, List, MoreVertical, FolderPlus, Pencil, Trash2, FolderInput } from 'lucide-react';
+import { Search, Upload, FileText, FileSpreadsheet, Image, File, Folder, ChevronRight, LayoutGrid, List, MoreVertical, FolderPlus, Pencil, Trash2, FolderInput, RefreshCw, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import GlassCard from '@/components/layout/GlassCard';
 import { files as initialFiles, FileItem } from '@/data/mockData';
@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { filesService } from '@/services/files';
+import { useApi } from '@/hooks/useApi';
 
 const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   pdf: FileText,
@@ -43,7 +45,6 @@ const Files = () => {
   const [search, setSearch] = useState('');
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [filesList, setFilesList] = useState<FileItem[]>(initialFiles);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [renameOpen, setRenameOpen] = useState(false);
@@ -52,10 +53,20 @@ const Files = () => {
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
-  const currentFolderItem = currentFolder ? filesList.find(f => f.id === currentFolder) : null;
-  const folders = filesList.filter(f => f.type === 'folder' && !f.parentId);
+  const { data: apiFiles, error, isLive, refetch } = useApi(
+    () => filesService.list(),
+    initialFiles,
+  );
 
-  const visibleFiles = filesList.filter(f => {
+  const [filesList, setFilesList] = useState<FileItem[]>(initialFiles);
+
+  // Use live data if available, otherwise use local state
+  const effectiveFiles = isLive ? apiFiles : filesList;
+
+  const currentFolderItem = currentFolder ? effectiveFiles.find(f => f.id === currentFolder) : null;
+  const folders = effectiveFiles.filter(f => f.type === 'folder' && !f.parentId);
+
+  const visibleFiles = effectiveFiles.filter(f => {
     if (currentFolder) return f.parentId === currentFolder;
     return !f.parentId;
   });
@@ -175,7 +186,6 @@ const Files = () => {
   };
 
   const handleFolderDragLeave = (e: React.DragEvent) => {
-    // Only clear if leaving the actual folder element
     const related = e.relatedTarget as HTMLElement;
     if (!e.currentTarget.contains(related)) {
       setDragOverTarget(null);
@@ -268,11 +278,33 @@ const Files = () => {
       exit={{ opacity: 0, y: -12 }}
       transition={{ duration: 0.3 }}
     >
+      {/* Error Banner */}
+      {error && (
+        <div className="flex items-center gap-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl px-4 py-3">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="text-xs flex-1">{error}</span>
+          <button onClick={refetch} className="flex items-center gap-1 text-xs font-medium hover:underline">
+            <RefreshCw className="h-3 w-3" /> Retry
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Files</h1>
-          <p className="text-sm text-muted-foreground mt-1">Research data and documents</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">Files</h1>
+            <p className="text-sm text-muted-foreground mt-1">Research data and documents</p>
+          </div>
+          {isLive ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono bg-success/10 text-success px-2.5 py-1 rounded-full">
+              <Wifi className="h-3 w-3" /> Live
+            </span>
+          ) : !error ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono bg-muted text-muted-foreground px-2.5 py-1 rounded-full">
+              <WifiOff className="h-3 w-3" /> Using sample data
+            </span>
+          ) : null}
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">

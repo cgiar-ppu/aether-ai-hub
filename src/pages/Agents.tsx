@@ -1,12 +1,14 @@
 import { motion } from 'framer-motion';
-import { Search, Plus, ArrowRight, Brain, Wrench } from 'lucide-react';
+import { Search, Plus, ArrowRight, Brain, Wrench, RefreshCw, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import GlassCard from '@/components/layout/GlassCard';
-import { agents, orchestrator } from '@/data/mockData';
+import { agents as mockAgents, orchestrator as mockOrchestrator } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { agentsService } from '@/services/agents';
+import { useApi } from '@/hooks/useApi';
 
 const container = {
   hidden: { opacity: 0 },
@@ -21,7 +23,15 @@ const item = {
 const Agents = () => {
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
-  const filtered = agents.filter(a =>
+
+  const { data: agentList, error, isLive, refetch } = useApi(
+    () => agentsService.list(),
+    mockAgents,
+  );
+
+  const orchestrator = mockOrchestrator;
+
+  const filtered = agentList.filter((a: any) =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.type.toLowerCase().includes(search.toLowerCase())
   );
@@ -34,11 +44,33 @@ const Agents = () => {
       exit={{ opacity: 0, y: -12 }}
       transition={{ duration: 0.3 }}
     >
+      {/* Error Banner */}
+      {error && (
+        <div className="flex items-center gap-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl px-4 py-3">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="text-xs flex-1">{error}</span>
+          <button onClick={refetch} className="flex items-center gap-1 text-xs font-medium hover:underline">
+            <RefreshCw className="h-3 w-3" /> Retry
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">AI Agents</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage and monitor your research agents</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">AI Agents</h1>
+            <p className="text-sm text-muted-foreground mt-1">Manage and monitor your research agents</p>
+          </div>
+          {isLive ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono bg-success/10 text-success px-2.5 py-1 rounded-full">
+              <Wifi className="h-3 w-3" /> Live
+            </span>
+          ) : !error ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono bg-muted text-muted-foreground px-2.5 py-1 rounded-full">
+              <WifiOff className="h-3 w-3" /> Using sample data
+            </span>
+          ) : null}
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -99,7 +131,7 @@ const Agents = () => {
         initial="hidden"
         animate="show"
       >
-        {filtered.map((agent) => (
+        {filtered.map((agent: any) => (
           <motion.div key={agent.id} variants={item}>
             <GlassCard
               className="p-5 group relative cursor-pointer"
@@ -112,7 +144,7 @@ const Agents = () => {
                     className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-primary-foreground"
                     style={{ background: `linear-gradient(135deg, hsl(${agent.avatarHue}, 60%, 50%), hsl(${agent.avatarHue + 30}, 60%, 45%))` }}
                   >
-                    {agent.name.split(' ').map(w => w[0]).join('')}
+                    {agent.name.split(' ').map((w: string) => w[0]).join('')}
                   </div>
                   <div className={cn(
                     'absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background',
@@ -140,7 +172,7 @@ const Agents = () => {
               {/* Tools */}
               <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                 <Wrench className="h-3 w-3 text-muted-foreground shrink-0" />
-                {agent.tools.map(tool => (
+                {agent.tools.map((tool: string) => (
                   <span key={tool} className="text-[10px] font-mono bg-secondary/50 text-muted-foreground px-1.5 py-0.5 rounded">
                     {tool}
                   </span>
@@ -168,7 +200,7 @@ const Agents = () => {
               {/* Bottom: tags + last active */}
               <div className="flex items-center justify-between">
                 <div className="flex gap-1.5 flex-wrap">
-                  {agent.tags.map(tag => (
+                  {agent.tags.map((tag: string) => (
                     <span key={tag} className="text-[10px] bg-secondary/50 text-muted-foreground px-2 py-0.5 rounded-md">
                       {tag}
                     </span>

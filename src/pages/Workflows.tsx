@@ -10,11 +10,13 @@ import ReactFlow, {
   Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Plus, Database, Settings, Brain, CheckCircle, FileText, Search, Play, Clock } from 'lucide-react';
-import { workflows, agents } from '@/data/mockData';
+import { Plus, Database, Settings, Brain, CheckCircle, FileText, Search, Play, Clock, RefreshCw, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
+import { workflows as mockWorkflows, agents } from '@/data/mockData';
 import GlassCard from '@/components/layout/GlassCard';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { workflowsService } from '@/services/workflows';
+import { useApi } from '@/hooks/useApi';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Database, Settings, Brain, CheckCircle, FileText, Search,
@@ -53,18 +55,23 @@ function GlassNode({ data }: { data: { label: string; status: string; duration?:
 const nodeTypes = { glass: GlassNode };
 
 const Workflows = () => {
-  const [selected, setSelected] = useState(workflows[0].id);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const currentWorkflow = workflows.find(w => w.id === selected)!;
+  const { data: wfList, error, isLive, refetch } = useApi(
+    () => workflowsService.list(),
+    mockWorkflows,
+  );
 
-  const flowNodes: Node[] = useMemo(() => currentWorkflow.nodes.map((n, i) => ({
+  const [selected, setSelected] = useState(wfList[0]?.id || mockWorkflows[0].id);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const currentWorkflow = wfList.find((w: any) => w.id === selected) || wfList[0] || mockWorkflows[0];
+
+  const flowNodes: Node[] = useMemo(() => currentWorkflow.nodes.map((n: any, i: number) => ({
     id: n.id,
     type: 'glass',
     position: { x: i * 220, y: 80 + (i % 2 === 0 ? 0 : 40) },
     data: { label: n.label, status: n.status, duration: n.duration, icon: n.icon },
   })), [currentWorkflow]);
 
-  const flowEdges: Edge[] = useMemo(() => currentWorkflow.edges.map(e => ({
+  const flowEdges: Edge[] = useMemo(() => currentWorkflow.edges.map((e: any) => ({
     id: e.id,
     source: e.source,
     target: e.target,
@@ -72,7 +79,7 @@ const Workflows = () => {
     style: { stroke: 'hsl(var(--primary))', strokeWidth: 2 },
   })), [currentWorkflow]);
 
-  const filteredWorkflows = filterStatus === 'all' ? workflows : workflows.filter(w => w.status === filterStatus);
+  const filteredWorkflows = filterStatus === 'all' ? wfList : wfList.filter((w: any) => w.status === filterStatus);
 
   return (
     <motion.div
@@ -82,11 +89,33 @@ const Workflows = () => {
       exit={{ opacity: 0, y: -12 }}
       transition={{ duration: 0.3 }}
     >
+      {/* Error Banner */}
+      {error && (
+        <div className="flex items-center gap-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl px-4 py-3">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="text-xs flex-1">{error}</span>
+          <button onClick={refetch} className="flex items-center gap-1 text-xs font-medium hover:underline">
+            <RefreshCw className="h-3 w-3" /> Retry
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Workflows</h1>
-          <p className="text-sm text-muted-foreground mt-1">Research pipeline templates</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">Workflows</h1>
+            <p className="text-sm text-muted-foreground mt-1">Research pipeline templates</p>
+          </div>
+          {isLive ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono bg-success/10 text-success px-2.5 py-1 rounded-full">
+              <Wifi className="h-3 w-3" /> Live
+            </span>
+          ) : !error ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-mono bg-muted text-muted-foreground px-2.5 py-1 rounded-full">
+              <WifiOff className="h-3 w-3" /> Using sample data
+            </span>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           {['all', 'running', 'completed', 'draft'].map(s => (
@@ -114,8 +143,8 @@ const Workflows = () => {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 min-h-[500px]">
         {/* List */}
         <div className="lg:col-span-2 space-y-3">
-          {filteredWorkflows.map(wf => {
-            const sequenceAgents = wf.agentSequence.map(id => agents.find(a => a.id === id)).filter(Boolean);
+          {filteredWorkflows.map((wf: any) => {
+            const sequenceAgents = wf.agentSequence.map((id: string) => agents.find(a => a.id === id)).filter(Boolean);
             return (
               <motion.div
                 key={wf.id}
@@ -144,14 +173,14 @@ const Workflows = () => {
 
                 {/* Agent Sequence */}
                 <div className="flex items-center gap-1 mb-3">
-                  {sequenceAgents.map((agent, i) => (
+                  {sequenceAgents.map((agent: any, i: number) => (
                     <div key={agent!.id} className="flex items-center">
                       <div
                         className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-semibold text-primary-foreground border-2 border-background"
                         style={{ background: `linear-gradient(135deg, hsl(${agent!.avatarHue}, 60%, 50%), hsl(${agent!.avatarHue + 30}, 60%, 45%))`, marginLeft: i > 0 ? '-6px' : '0' }}
                         title={agent!.name}
                       >
-                        {agent!.name.split(' ').map(w => w[0]).join('')}
+                        {agent!.name.split(' ').map((w: string) => w[0]).join('')}
                       </div>
                       {i < sequenceAgents.length - 1 && (
                         <div className="w-4 h-px bg-primary/30 mx-0.5" />
