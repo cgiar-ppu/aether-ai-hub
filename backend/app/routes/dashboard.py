@@ -2,7 +2,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends
 
-from app.auth.middleware import get_current_user
+from app.auth.middleware import get_optional_user
 from app.config import settings
 from app.models import User
 from app.models.schemas import ActivityItem, DashboardStatsResponse, UsageByAgentResponse
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 @router.get("/stats", response_model=DashboardStatsResponse)
-async def get_stats(user: User = Depends(get_current_user)):
+async def get_stats(user: User = Depends(get_optional_user)):
     """Get aggregate dashboard statistics for the current user.
 
     Returns total sessions, workflows, files, and timestamp of last activity.
@@ -41,7 +41,7 @@ async def get_stats(user: User = Depends(get_current_user)):
 
 
 @router.get("/usage", response_model=List[UsageByAgentResponse])
-async def get_usage(user: User = Depends(get_current_user)):
+async def get_usage(user: User = Depends(get_optional_user)):
     """Get usage statistics grouped by agent type for the current user."""
     workflows = await dynamo_service.query_by_user(
         settings.DYNAMODB_WORKFLOWS_TABLE, user.id
@@ -60,7 +60,7 @@ async def get_usage(user: User = Depends(get_current_user)):
 
 
 @router.get("/activity")
-async def get_activity(user: User = Depends(get_current_user)):
+async def get_activity(user: User = Depends(get_optional_user)):
     """Get recent agent activity feed for the dashboard."""
     return {
         "recent": [
@@ -99,7 +99,7 @@ async def get_activity(user: User = Depends(get_current_user)):
 
 
 @router.get("/recent-activity", response_model=List[ActivityItem])
-async def get_recent_activity(user: User = Depends(get_current_user)):
+async def get_recent_activity(user: User = Depends(get_optional_user)):
     """Get the last 10 activities for the current user across sessions and workflows."""
     sessions = await dynamo_service.query_by_user(
         settings.DYNAMODB_SESSIONS_TABLE, user.id

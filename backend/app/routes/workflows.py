@@ -4,7 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth.middleware import get_current_user
+from app.auth.middleware import get_optional_user
 from app.config import settings
 from app.models import User, Workflow
 from app.models.schemas import CreateWorkflowRequest
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/workflows", tags=["workflows"])
 @router.post("/", response_model=Workflow)
 async def create_workflow(
     body: CreateWorkflowRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Create a new multi-agent workflow with ordered steps."""
     now = datetime.now(timezone.utc)
@@ -50,7 +50,7 @@ async def create_workflow(
 
 
 @router.get("/", response_model=List[Workflow])
-async def list_workflows(user: User = Depends(get_current_user)):
+async def list_workflows(user: User = Depends(get_optional_user)):
     """List all workflows belonging to the current user."""
     items = await dynamo_service.query_by_user(
         settings.DYNAMODB_WORKFLOWS_TABLE, user.id
@@ -75,7 +75,7 @@ async def list_workflows(user: User = Depends(get_current_user)):
 @router.get("/{workflow_id}", response_model=Workflow)
 async def get_workflow(
     workflow_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Get detailed information about a specific workflow including step statuses."""
     item = await dynamo_service.get_item(
@@ -102,7 +102,7 @@ async def get_workflow(
 @router.delete("/{workflow_id}")
 async def delete_workflow(
     workflow_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Cancel and delete a workflow."""
     item = await dynamo_service.get_item(
@@ -124,7 +124,7 @@ async def delete_workflow(
 @router.post("/{workflow_id}/execute")
 async def execute_workflow(
     workflow_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Start execution of a workflow via the agent service.
 

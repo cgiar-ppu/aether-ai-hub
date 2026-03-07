@@ -32,13 +32,25 @@ async def get_current_user(authorization: str = Header(...)) -> User:
     )
 
 
+GUEST_USER = User(
+    id="guest",
+    email="guest@cgiar.org",
+    name="Guest Researcher",
+    role="user",
+    groups=[],
+)
+
+
 async def get_optional_user(
     authorization: Optional[str] = Header(None),
-) -> Optional[User]:
-    """Return the authenticated user if a valid token is provided, otherwise None."""
+) -> User:
+    """Return the authenticated user if a valid token is provided, otherwise a guest user.
+
+    This allows all endpoints to work without authentication during development.
+    """
     if not authorization:
-        return None
+        return GUEST_USER
     try:
         return await get_current_user(authorization)
     except HTTPException:
-        return None
+        return GUEST_USER

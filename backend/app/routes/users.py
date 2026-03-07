@@ -2,7 +2,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends
 
-from app.auth.middleware import get_current_user
+from app.auth.middleware import get_optional_user
 from app.config import settings
 from app.models import User
 from app.models.schemas import UpdateUserRequest
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 
 
 @router.get("/me", response_model=User)
-async def get_current_user_profile(user: User = Depends(get_current_user)):
+async def get_current_user_profile(user: User = Depends(get_optional_user)):
     """Get the current authenticated user's profile."""
     return user
 
@@ -20,7 +20,7 @@ async def get_current_user_profile(user: User = Depends(get_current_user)):
 @router.put("/me")
 async def update_user_profile(
     body: UpdateUserRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Update the current user's profile (name, preferences)."""
     updates = {}
@@ -43,7 +43,7 @@ async def update_user_profile(
 
 
 @router.get("/me/sessions")
-async def get_user_sessions(user: User = Depends(get_current_user)):
+async def get_user_sessions(user: User = Depends(get_optional_user)):
     """List all sessions for the current user."""
     sessions = await dynamo_service.query_by_user(
         settings.DYNAMODB_SESSIONS_TABLE, user.id

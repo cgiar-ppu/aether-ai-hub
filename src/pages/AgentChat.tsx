@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, ArrowLeft, Settings2, X, AlertTriangle } from 'lucide-react';
+import { Send, ArrowLeft, Settings2, X, AlertTriangle, Loader2 } from 'lucide-react';
 import { agents, chatMessages, agentToolsMap, type ChatMessage } from '@/data/mockData';
 import CodeBlock from '@/components/CodeBlock';
 import { cn } from '@/lib/utils';
@@ -35,6 +35,8 @@ const AgentChat = () => {
   const [toolStates, setToolStates] = useState<Record<string, boolean>>({});
   const [wsConnected, setWsConnected] = useState(false);
   const [wsError, setWsError] = useState<string | null>(null);
+  const [provisioning, setProvisioning] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -68,13 +70,38 @@ const AgentChat = () => {
     return parts.length > 0 ? parts : content;
   };
 
-  // Attempt WebSocket connection
+  // Provision session, poll for readiness, then connect WebSocket
   const connectWs = useCallback(async () => {
     setWsError(null);
+    setProvisioning(true);
     try {
-      const sessionId = `session-${selectedAgent.id}-${Date.now()}`;
+      // 1. Start session — provisions a container
+      const session = await chatService.startSession(selectedAgent.id);
+      const sid = session.session_id;
+      setSessionId(sid);
+
+      // 2. Poll status until container is active (max 60s)
+      const deadline = Date.now() + 60_000;
+      let ready = session.status === 'active';
+      while (!ready && Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          const st = await chatService.getStatus(sid);
+          ready = st.status === 'active';
+        } catch {
+          // status endpoint may 404 while starting — keep polling
+        }
+      }
+      setProvisioning(false);
+
+      if (!ready) {
+        setWsError('Agent container did not become ready in time');
+        return;
+      }
+
+      // 3. Connect WebSocket
       await chatService.connect(
-        sessionId,
+        sid,
         selectedAgent.id,
         (msg: ChatWsMessage) => {
           if (msg.type === 'agent_response' && msg.content) {
@@ -113,16 +140,20 @@ const AgentChat = () => {
         },
       );
       setWsConnected(true);
-    } catch {
-      setWsError('Could not connect to agent');
+    } catch (e) {
+      setProvisioning(false);
+      setWsError(e instanceof Error ? e.message : 'Could not connect to agent');
       setWsConnected(false);
     }
   }, [selectedAgent.id]);
 
-  // Try to connect on mount
+  // Try to connect on mount, cleanup on unmount
   useEffect(() => {
     connectWs();
-    return () => chatService.disconnect();
+    return () => {
+      chatService.disconnect();
+      if (sessionId) chatService.stopSession(sessionId).catch(() => {});
+    };
   }, [connectWs]);
 
   // Reset config when agent changes
@@ -133,6 +164,8 @@ const AgentChat = () => {
     setToolStates(states);
     setLiveMessages([]);
     setWsError(null);
+    setSessionId(null);
+    setProvisioning(false);
   }, [selectedAgent.id]);
 
   useEffect(() => {
@@ -243,9 +276,9 @@ const AgentChat = () => {
             <div>
               <h2 className="text-sm font-semibold text-foreground">{selectedAgent.name}</h2>
               <div className="flex items-center gap-1.5">
-                <span className={cn('w-1.5 h-1.5 rounded-full', wsConnected ? 'bg-success' : 'bg-muted-foreground')} />
-                <span className={cn('text-[10px] font-mono', wsConnected ? 'text-success' : 'text-muted-foreground')}>
-                  {wsConnected ? 'Connected' : 'Offline'}
+                <span className={cn('w-1.5 h-1.5 rounded-full', wsConnected ? 'bg-success' : provisioning ? 'bg-warning animate-pulse' : 'bg-muted-foreground')} />
+                <span className={cn('text-[10px] font-mono', wsConnected ? 'text-success' : provisioning ? 'text-warning' : 'text-muted-foreground')}>
+                  {wsConnected ? 'Connected' : provisioning ? 'Provisioning...' : 'Offline'}
                 </span>
                 <span className="text-[10px] text-muted-foreground ml-2 font-mono">{selectedAgent.model}</span>
               </div>
@@ -260,6 +293,14 @@ const AgentChat = () => {
             <Settings2 className="h-4 w-4" />
           </Button>
         </div>
+
+        {/* Provisioning Banner */}
+        {provisioning && !wsError && (
+          <div className="flex items-center gap-3 bg-warning/10 border-b border-warning/20 text-warning px-6 py-2.5">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            <span className="text-xs flex-1">Provisioning agent container... This may take up to 60 seconds.</span>
+          </div>
+        )}
 
         {/* WebSocket Error Banner */}
         {wsError && (

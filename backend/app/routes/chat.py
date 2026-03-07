@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket
 from jose import JWTError
 
 from app.auth.cognito import verify_cognito_token
-from app.auth.middleware import get_current_user
+from app.auth.middleware import get_optional_user
 from app.models import SessionStatus, User
 from app.models.schemas import StartChatRequest
 from app.services.agent_proxy import agent_proxy
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 @router.post("/start")
 async def start_chat(
     body: StartChatRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Start a new chat session by provisioning an agent container.
 
@@ -35,7 +35,7 @@ async def start_chat(
 @router.get("/status/{session_id}")
 async def get_session_status(
     session_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Check the current status of a chat session and its container."""
     status = await agent_proxy.check_status(session_id)
@@ -46,19 +46,21 @@ async def get_session_status(
 async def websocket_chat(
     websocket: WebSocket,
     session_id: str,
-    token: str = Query(...),
+    token: str = Query(None),
 ):
     """WebSocket endpoint for real-time chat with an agent container.
 
-    Authenticates via query parameter token, verifies the session is active,
-    then relays messages bidirectionally.
+    Authenticates via query parameter token if provided. Falls back to guest
+    access when no token is supplied (development mode).
     """
-    # Validate auth token from query param
-    try:
-        claims = await verify_cognito_token(token)
-    except (JWTError, Exception):
-        await websocket.close(code=1008, reason="Invalid token")
-        return
+    user_id = "guest"
+    if token:
+        try:
+            claims = await verify_cognito_token(token)
+            user_id = claims.get("sub", "guest")
+        except (JWTError, Exception):
+            await websocket.close(code=1008, reason="Invalid token")
+            return
 
     # Verify session is active
     item = await dynamo_service.get_item(
@@ -69,7 +71,7 @@ async def websocket_chat(
         await websocket.close(code=1008, reason="Session not active")
         return
 
-    if item.get("user_id") != claims.get("sub"):
+    if token and item.get("user_id") != user_id:
         await websocket.close(code=1008, reason="Unauthorized")
         return
 
@@ -80,7 +82,7 @@ async def websocket_chat(
 @router.post("/stop/{session_id}")
 async def stop_chat(
     session_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Stop a chat session and deprovision its agent container."""
     success = await agent_proxy.deprovision(session_id)
@@ -92,7 +94,7 @@ async def stop_chat(
 @router.get("/history/{session_id}")
 async def get_chat_history(
     session_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Retrieve chat history for a session from the agent container."""
     item = await dynamo_service.get_item(

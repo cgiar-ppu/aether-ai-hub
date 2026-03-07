@@ -10,12 +10,67 @@ export interface ChatWsMessage {
   error?: string;
 }
 
+export interface StartSessionResponse {
+  session_id: string;
+  status: string;
+  container_url?: string;
+}
+
 export class ChatService {
   private ws: WebSocket | null = null;
   private tokenProvider: TokenProvider | null = null;
 
   setTokenProvider(provider: TokenProvider) {
     this.tokenProvider = provider;
+  }
+
+  private async authHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.tokenProvider) {
+      const token = await this.tokenProvider();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+  }
+
+  /** POST /api/chat/start — provision an agent container and get a session_id */
+  async startSession(agentId: string): Promise<StartSessionResponse> {
+    const res = await fetch(`${API_BASE_URL}/api/chat/start`, {
+      method: 'POST',
+      headers: await this.authHeaders(),
+      body: JSON.stringify({ agent_type: agentId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || `Start session failed (${res.status})`);
+    }
+    return res.json();
+  }
+
+  /** POST /api/chat/stop/{sessionId} — deprovision the agent container */
+  async stopSession(sessionId: string): Promise<void> {
+    await fetch(`${API_BASE_URL}/api/chat/stop/${sessionId}`, {
+      method: 'POST',
+      headers: await this.authHeaders(),
+    });
+  }
+
+  /** GET /api/chat/history/{sessionId} — retrieve conversation history */
+  async getHistory(sessionId: string): Promise<unknown[]> {
+    const res = await fetch(`${API_BASE_URL}/api/chat/history/${sessionId}`, {
+      headers: await this.authHeaders(),
+    });
+    if (!res.ok) return [];
+    return res.json();
+  }
+
+  /** GET /api/chat/status/{sessionId} — poll session readiness */
+  async getStatus(sessionId: string): Promise<{ status: string }> {
+    const res = await fetch(`${API_BASE_URL}/api/chat/status/${sessionId}`, {
+      headers: await this.authHeaders(),
+    });
+    if (!res.ok) throw new Error('Status check failed');
+    return res.json();
   }
 
   async connect(

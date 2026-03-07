@@ -2,7 +2,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth.middleware import get_current_user
+from app.auth.middleware import get_optional_user
 from app.models import FileMetadata, User
 from app.models.schemas import FileUploadRequest
 from app.services.s3_service import s3_service
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/files", tags=["files"])
 @router.post("/upload")
 async def upload_file(
     body: FileUploadRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Generate a presigned URL for uploading a file to S3.
 
@@ -26,7 +26,7 @@ async def upload_file(
 
 
 @router.get("/", response_model=List[FileMetadata])
-async def list_files(user: User = Depends(get_current_user)):
+async def list_files(user: User = Depends(get_optional_user)):
     """List all files uploaded by the current user."""
     files = await s3_service.list_user_files(user.id)
     return files
@@ -35,7 +35,7 @@ async def list_files(user: User = Depends(get_current_user)):
 @router.get("/{file_key:path}/download")
 async def download_file(
     file_key: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Generate a presigned download URL for a specific file.
 
@@ -51,7 +51,7 @@ async def download_file(
 @router.delete("/{file_key:path}")
 async def delete_file(
     file_key: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Delete a file from S3.
 

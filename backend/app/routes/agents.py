@@ -2,7 +2,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth.middleware import get_current_user
+from app.auth.middleware import get_optional_user
 from app.config import settings
 from app.models import Agent, AgentRole, AgentType, User
 from app.models.schemas import AgentConfigRequest
@@ -160,19 +160,19 @@ _AGENTS_BY_TYPE = {a.type.value: a for a in AGENTS_CATALOG}
 
 
 @router.get("/", response_model=List[Agent])
-async def list_agents(user: User = Depends(get_current_user)):
+async def list_agents(user: User = Depends(get_optional_user)):
     """List all available AI agents including the orchestrator."""
     return [ORCHESTRATOR] + AGENTS_CATALOG
 
 
 @router.get("/orchestrator", response_model=Agent)
-async def get_orchestrator(user: User = Depends(get_current_user)):
+async def get_orchestrator(user: User = Depends(get_optional_user)):
     """Get the orchestrator agent details."""
     return ORCHESTRATOR
 
 
 @router.get("/{agent_id}", response_model=Agent)
-async def get_agent(agent_id: str, user: User = Depends(get_current_user)):
+async def get_agent(agent_id: str, user: User = Depends(get_optional_user)):
     """Get detailed information about a specific agent by ID or type."""
     if agent_id == "orchestrator":
         return ORCHESTRATOR
@@ -184,7 +184,7 @@ async def get_agent(agent_id: str, user: User = Depends(get_current_user)):
 
 
 @router.get("/{agent_id}/status")
-async def get_agent_status(agent_id: str, user: User = Depends(get_current_user)):
+async def get_agent_status(agent_id: str, user: User = Depends(get_optional_user)):
     """Check the status of a specific agent (in production, checks container status)."""
     if agent_id == "orchestrator":
         return {"agent_id": "orchestrator", "status": "active", "sessions": 0}
@@ -198,7 +198,7 @@ async def get_agent_status(agent_id: str, user: User = Depends(get_current_user)
 async def configure_agent(
     agent_id: str,
     config: AgentConfigRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_optional_user),
 ):
     """Save user-specific configuration for an agent."""
     agent = _AGENTS_BY_ID.get(agent_id) or _AGENTS_BY_TYPE.get(agent_id)
