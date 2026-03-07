@@ -57,6 +57,6 @@ jobs:
               'docker pull $IMAGE_URI',
               'docker stop backend || true',
               'docker rm backend || true',
-              'docker run -d --name backend -p 8000:8000 --env-file /opt/backend/.env --restart unless-stopped $IMAGE_URI'
+              'if [ -f /opt/backend/.env ]; then docker run -d --name backend -p 8000:8000 --env-file /opt/backend/.env --restart unless-stopped $IMAGE_URI; else docker run -d --name backend -p 8000:8000 --restart unless-stopped $IMAGE_URI; fi'
             ]" \
             --region ${{ env.AWS_REGION }}
