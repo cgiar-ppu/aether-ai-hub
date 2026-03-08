@@ -80,22 +80,30 @@ const AgentChat = () => {
       const sid = session.session_id;
       setSessionId(sid);
 
-      // 2. Poll status until container is active (max 60s)
-      const deadline = Date.now() + 60_000;
+      // 2. Poll status until container is active (max 90s for cold starts)
+      const deadline = Date.now() + 90_000;
       let ready = session.status === 'active';
+      let lastStatus = session.status;
       while (!ready && Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 3000));
         try {
           const st = await chatService.getStatus(sid);
+          lastStatus = st.status;
           ready = st.status === 'active';
         } catch {
-          // status endpoint may 404 while starting — keep polling
+          // status endpoint may error while starting — keep polling
         }
       }
       setProvisioning(false);
 
       if (!ready) {
-        setWsError('Agent container did not become ready in time');
+        setWsError(
+          lastStatus === 'starting'
+            ? 'Agent container is starting but not yet healthy. The agent service may need attention.'
+            : lastStatus === 'not_found'
+              ? 'Agent container was not found. It may have timed out — try again.'
+              : `Agent container did not become ready (last status: ${lastStatus})`
+        );
         return;
       }
 
