@@ -150,7 +150,7 @@ export class ChatService {
 
   send(message: string) {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'message', content: message }));
+      this.ws.send(JSON.stringify({ type: 'message', message: message }));
     }
   }
 
