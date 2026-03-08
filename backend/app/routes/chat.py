@@ -24,7 +24,8 @@ async def start_chat(
     Returns the session ID and provisioning status.
     """
     session_id = str(uuid.uuid4())
-    session = await agent_proxy.provision_container(user.id, session_id)
+    agent_type = body.agent_type.value if body.agent_type else "default"
+    session = await agent_proxy.provision_container(user.id, session_id, agent_type)
     return {
         "session_id": session.id,
         "status": session.status.value,

@@ -55,6 +55,7 @@ class Agent(BaseModel):
     model: str = "claude-sonnet-4"
     role: AgentRole = AgentRole.SUBAGENT
     description: str
+    system_prompt: str = ""
     status: str = "available"
     tools: List[str] = []
     capabilities: List[str] = []

@@ -75,8 +75,8 @@ const AgentChat = () => {
     setWsError(null);
     setProvisioning(true);
     try {
-      // 1. Start session — provisions a container
-      const session = await chatService.startSession(selectedAgent.id);
+      // 1. Start session — provisions a container (use URL agentId, not mock selectedAgent.id)
+      const session = await chatService.startSession(agentId!);
       const sid = session.session_id;
       setSessionId(sid);
 
@@ -107,10 +107,10 @@ const AgentChat = () => {
         return;
       }
 
-      // 3. Connect WebSocket
+      // 3. Connect WebSocket (use URL agentId for consistency)
       await chatService.connect(
         sid,
-        selectedAgent.id,
+        agentId!,
         (msg: ChatWsMessage) => {
           if (msg.type === 'agent_response' && msg.content) {
             setIsTyping(false);
@@ -153,7 +153,7 @@ const AgentChat = () => {
       setWsError(e instanceof Error ? e.message : 'Could not connect to agent');
       setWsConnected(false);
     }
-  }, [selectedAgent.id]);
+  }, [agentId]);
 
   // Try to connect on mount, cleanup on unmount
   useEffect(() => {

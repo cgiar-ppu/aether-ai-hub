@@ -16,6 +16,27 @@ export interface StartSessionResponse {
   container_url?: string;
 }
 
+/**
+ * Map numeric mock-data IDs to valid backend AgentType enum values.
+ * mockData.ts uses IDs '1'–'6'; the backend expects snake_case enum values.
+ */
+const AGENT_ID_MAP: Record<string, string> = {
+  '1': 'literature_analyst',
+  '2': 'data_harmonizer',
+  '3': 'hypothesis_generator',
+  '4': 'experiment_designer',
+  '5': 'peer_reviewer',
+  '6': 'report_synthesizer',
+};
+
+/** Convert any agent ID format to a valid backend AgentType enum value. */
+function resolveAgentType(agentId: string): string {
+  // Numeric mock ID → enum value
+  if (AGENT_ID_MAP[agentId]) return AGENT_ID_MAP[agentId];
+  // Hyphenated backend ID (e.g. "literature-analyst") → underscore enum value
+  return agentId.replace(/-/g, '_');
+}
+
 export class ChatService {
   private ws: WebSocket | null = null;
   private tokenProvider: TokenProvider | null = null;
@@ -35,8 +56,7 @@ export class ChatService {
 
   /** POST /api/chat/start — provision an agent container and get a session_id */
   async startSession(agentId: string): Promise<StartSessionResponse> {
-    // Convert hyphenated agent IDs to underscore enum values the backend expects
-    const agentType = agentId.replace(/-/g, '_');
+    const agentType = resolveAgentType(agentId);
     const res = await fetch(`${API_BASE_URL}/api/chat/start`, {
       method: 'POST',
       headers: await this.authHeaders(),

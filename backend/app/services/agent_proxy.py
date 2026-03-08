@@ -90,11 +90,15 @@ class AgentProxy:
             {"session_id": session_id, "user_id": user_id},
         )
 
-    async def provision_container(self, user_id: str, session_id: str) -> Session:
+    async def provision_container(
+        self, user_id: str, session_id: str, agent_type: str = "default"
+    ) -> Session:
         """Provision a new agent container via Lambda.
 
         Invokes the provision Lambda (API Gateway format), saves the session
         to DynamoDB, and returns the session with container URL.
+        ``agent_type`` is forwarded so the container can load the correct
+        agent personality / system prompt.
         """
         # Lambda expects API Gateway format with camelCase field names
         result = await self._invoke_lambda(
@@ -103,7 +107,7 @@ class AgentProxy:
                 "body": json.dumps({
                     "userId": user_id,
                     "sessionId": session_id,
-                    "agentId": "default",
+                    "agentId": agent_type,
                 }),
             },
         )
