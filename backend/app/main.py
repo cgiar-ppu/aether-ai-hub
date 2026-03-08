@@ -4,6 +4,7 @@ import logging
 import boto3
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.config import settings
 from app.routes import agents, chat, dashboard, files, users, workflows
@@ -16,6 +17,9 @@ app = FastAPI(
     version="1.0.0",
     description="Backend Principal for the AI Co-Scientist research platform",
 )
+
+# Trust ALB's X-Forwarded-Proto/X-Forwarded-For so redirects use HTTPS
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 app.add_middleware(
     CORSMiddleware,
