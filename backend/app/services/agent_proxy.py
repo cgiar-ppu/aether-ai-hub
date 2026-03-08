@@ -100,6 +100,33 @@ class AgentProxy:
         ``agent_type`` is forwarded so the container can load the correct
         agent personality / system prompt.
         """
+        now = datetime.now(timezone.utc)
+
+        # --- Direct mode: skip Lambda, point straight at the persistent agent ---
+        if settings.AGENT_DIRECT_URL:
+            container_url = settings.AGENT_DIRECT_URL
+            session = Session(
+                id=session_id,
+                user_id=user_id,
+                container_url=container_url,
+                status=SessionStatus.ACTIVE,
+                created_at=now,
+            )
+            await dynamo_service.put_item(
+                settings.DYNAMODB_SESSIONS_TABLE,
+                {
+                    "session_id": session.id,
+                    "user_id": user_id,
+                    "container_url": container_url,
+                    "container_id": "",
+                    "instance_id": "",
+                    "status": session.status.value,
+                    "created_at": now.isoformat(),
+                },
+            )
+            return session
+
+        # --- Lambda provisioning mode ---
         # Lambda expects API Gateway format with camelCase field names
         result = await self._invoke_lambda(
             settings.LAMBDA_PROVISION_FUNCTION,
@@ -116,9 +143,7 @@ class AgentProxy:
         # Strip protocol prefix — relay_websocket prepends ws:// itself
         raw_url = result.get("appUrl", "")
         container_url = raw_url.replace("http://", "").replace("https://", "")
-        lambda_status = result.get("status", "provisioning")
 
-        now = datetime.now(timezone.utc)
         # Always start as PROVISIONING — the status endpoint will promote to
         # ACTIVE only when the container health-check confirms it is ready.
         # The provision Lambda may optimistically return "ready"/"active"
@@ -255,6 +280,15 @@ class AgentProxy:
         Calls the status Lambda with the userId, then updates DynamoDB
         if the container has become ready.
         """
+        # --- Direct mode: always healthy ---
+        if settings.AGENT_DIRECT_URL:
+            return {
+                "status": "active",
+                "container_url": settings.AGENT_DIRECT_URL,
+                "healthy": True,
+            }
+
+        # --- Lambda provisioning mode ---
         result = await self._invoke_lambda(
             settings.LAMBDA_STATUS_FUNCTION,
             {"pathParameters": {"userId": user_id}},
@@ -287,13 +321,15 @@ class AgentProxy:
         self, session_id: str, user_id: str = "guest"
     ) -> bool:
         """Deprovision an agent container and update DynamoDB."""
-        try:
-            await self._invoke_lambda(
-                settings.LAMBDA_DEPROVISION_FUNCTION,
-                {"pathParameters": {"userId": user_id}},
-            )
-        except RuntimeError as e:
-            logger.warning("Deprovision Lambda error (non-fatal): %s", e)
+        # --- Direct mode: just mark terminated in DynamoDB, no Lambda call ---
+        if not settings.AGENT_DIRECT_URL:
+            try:
+                await self._invoke_lambda(
+                    settings.LAMBDA_DEPROVISION_FUNCTION,
+                    {"pathParameters": {"userId": user_id}},
+                )
+            except RuntimeError as e:
+                logger.warning("Deprovision Lambda error (non-fatal): %s", e)
 
         await dynamo_service.update_item(
             settings.DYNAMODB_SESSIONS_TABLE,
