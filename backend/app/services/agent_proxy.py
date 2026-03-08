@@ -119,11 +119,11 @@ class AgentProxy:
         lambda_status = result.get("status", "provisioning")
 
         now = datetime.now(timezone.utc)
-        status = (
-            SessionStatus.ACTIVE
-            if lambda_status in ("ready", "active")
-            else SessionStatus.PROVISIONING
-        )
+        # Always start as PROVISIONING — the status endpoint will promote to
+        # ACTIVE only when the container health-check confirms it is ready.
+        # The provision Lambda may optimistically return "ready"/"active"
+        # before the container is actually serving requests.
+        status = SessionStatus.PROVISIONING
         session = Session(
             id=session_id,
             user_id=user_id,
@@ -155,14 +155,26 @@ class AgentProxy:
         """Bidirectional WebSocket relay between frontend and agent container."""
         item = await self._get_session(session_id, user_id)
         if not item or not item.get("container_url"):
+            try:
+                await frontend_ws.send_text(
+                    json.dumps({"type": "error", "error": "Session has no container URL"})
+                )
+            except Exception:
+                pass
             await frontend_ws.close(code=1008, reason="Session not found")
             return
 
         container_url = item["container_url"]
-        ws_url = f"ws://{container_url}/ws"
+        ws_url = f"ws://{container_url}/ws/chat"
+        logger.info(
+            "Relay connecting to container: %s (session=%s)", ws_url, session_id
+        )
 
         try:
-            async with websockets.connect(ws_url) as container_ws:
+            async with websockets.connect(
+                ws_url, open_timeout=15, close_timeout=5
+            ) as container_ws:
+                logger.info("Container WS connected for session %s", session_id)
 
                 async def forward_to_container():
                     try:
@@ -170,7 +182,7 @@ class AgentProxy:
                             data = await frontend_ws.receive_text()
                             await container_ws.send(data)
                     except WebSocketDisconnect:
-                        pass
+                        logger.info("Frontend disconnected for session %s", session_id)
 
                 async def forward_to_frontend():
                     try:
@@ -179,7 +191,9 @@ class AgentProxy:
                                 message if isinstance(message, str) else message.decode()
                             )
                     except websockets.ConnectionClosed:
-                        pass
+                        logger.info(
+                            "Container WS closed for session %s", session_id
+                        )
 
                 async def heartbeat():
                     try:
@@ -200,8 +214,33 @@ class AgentProxy:
                 for task in pending:
                     task.cancel()
 
+        except (ConnectionRefusedError, OSError) as e:
+            logger.error(
+                "Cannot reach container %s for session %s: %s",
+                ws_url,
+                session_id,
+                e,
+            )
+            try:
+                await frontend_ws.send_text(
+                    json.dumps({
+                        "type": "error",
+                        "error": "Agent container is not reachable. It may still be starting — please retry.",
+                    })
+                )
+            except Exception:
+                pass
         except Exception as e:
             logger.error("WebSocket relay error for session %s: %s", session_id, e)
+            try:
+                await frontend_ws.send_text(
+                    json.dumps({
+                        "type": "error",
+                        "error": f"Connection to agent lost: {e}",
+                    })
+                )
+            except Exception:
+                pass
         finally:
             try:
                 await frontend_ws.close()

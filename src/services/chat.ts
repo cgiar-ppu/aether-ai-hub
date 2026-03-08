@@ -3,9 +3,12 @@ import { API_BASE_URL } from '@/config/aws';
 type TokenProvider = () => Promise<string | null>;
 
 export interface ChatWsMessage {
-  type: 'agent_response' | 'tool_use' | 'error' | 'done';
+  // Agent (synapsis-agent) sends: text, thinking, tool_use, error, done
+  // Backend may also wrap as: agent_response
+  type: 'text' | 'thinking' | 'agent_response' | 'tool_use' | 'error' | 'done';
   content?: string;
   toolUsed?: string;
+  tool_name?: string;
   confidence?: { level: 'GREEN' | 'AMBER' | 'RED'; score: number; reasoning: string };
   error?: string;
 }
@@ -92,7 +95,7 @@ export class ChatService {
   }
 
   /** GET /api/chat/status/{sessionId} — poll session readiness */
-  async getStatus(sessionId: string): Promise<{ status: string }> {
+  async getStatus(sessionId: string): Promise<{ status: string; healthy?: boolean }> {
     const res = await fetch(`${API_BASE_URL}/api/chat/status/${sessionId}`, {
       headers: await this.authHeaders(),
     });
@@ -128,7 +131,10 @@ export class ChatService {
 
     this.ws.onerror = () => onError('WebSocket connection error');
     this.ws.onclose = (e) => {
-      if (e.code !== 1000) onError(`Connection closed (code ${e.code})`);
+      if (e.code !== 1000) {
+        const reason = e.reason || `code ${e.code}`;
+        onError(`Agent disconnected (${reason}). Please retry.`);
+      }
     };
 
     return new Promise<void>((resolve, reject) => {
@@ -144,7 +150,7 @@ export class ChatService {
 
   send(message: string) {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ content: message }));
+      this.ws.send(JSON.stringify({ type: 'message', content: message }));
     }
   }
 

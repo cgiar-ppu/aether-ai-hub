@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, ArrowLeft, Settings2, X, AlertTriangle, Loader2 } from 'lucide-react';
-import { agents, chatMessages, agentToolsMap, type ChatMessage } from '@/data/mockData';
+import { agents, agentToolsMap, type ChatMessage } from '@/data/mockData';
 import CodeBlock from '@/components/CodeBlock';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -40,11 +40,10 @@ const AgentChat = () => {
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const mockMessages = chatMessages.filter(m => m.agentId === selectedAgent.id);
   const agentTools = agentToolsMap[selectedAgent.id] || [];
 
-  // Combine mock + live messages
-  const allMessages = [...mockMessages, ...liveMessages];
+  // Only show live messages from the real WebSocket connection
+  const allMessages = liveMessages;
 
   // Parse message content for code blocks
   const renderMessageContent = (content: string) => {
@@ -80,9 +79,11 @@ const AgentChat = () => {
       const sid = session.session_id;
       setSessionId(sid);
 
-      // 2. Poll status until container is active (max 90s for cold starts)
+      // 2. Poll status until container is truly healthy (max 90s for cold starts).
+      //    Never trust the provision response — it may optimistically return
+      //    "active" before the container is actually serving requests.
       const deadline = Date.now() + 90_000;
-      let ready = session.status === 'active';
+      let ready = false;
       let lastStatus = session.status;
       while (!ready && Date.now() < deadline) {
         await new Promise(r => setTimeout(r, 3000));
@@ -112,7 +113,8 @@ const AgentChat = () => {
         sid,
         agentId!,
         (msg: ChatWsMessage) => {
-          if (msg.type === 'agent_response' && msg.content) {
+          // Agent sends: text (response), thinking, tool_use, error, done
+          if ((msg.type === 'text' || msg.type === 'agent_response') && msg.content) {
             setIsTyping(false);
             const newMsg: ChatMessage = {
               id: `live-${Date.now()}`,
@@ -120,31 +122,36 @@ const AgentChat = () => {
               role: 'agent',
               content: msg.content,
               timestamp: 'just now',
-              toolUsed: msg.toolUsed,
+              toolUsed: msg.toolUsed || msg.tool_name,
               confidence: msg.confidence?.level === 'GREEN' ? 'high'
                 : msg.confidence?.level === 'AMBER' ? 'medium'
                 : msg.confidence?.level === 'RED' ? 'low'
                 : undefined,
             };
             setLiveMessages(prev => [...prev, newMsg]);
-          } else if (msg.type === 'tool_use' && msg.toolUsed) {
+          } else if (msg.type === 'tool_use') {
+            const toolName = msg.toolUsed || msg.tool_name || 'tool';
             const toolMsg: ChatMessage = {
               id: `tool-${Date.now()}`,
               agentId: selectedAgent.id,
               role: 'agent',
-              content: msg.content || 'Using tool...',
+              content: msg.content || `Using ${toolName}...`,
               timestamp: 'just now',
-              toolUsed: msg.toolUsed,
+              toolUsed: toolName,
             };
             setLiveMessages(prev => [...prev, toolMsg]);
           } else if (msg.type === 'error') {
-            setWsError(msg.error || 'Agent returned an error');
+            setWsError(msg.error || msg.content || 'Agent returned an error');
+            setIsTyping(false);
+          } else if (msg.type === 'done') {
             setIsTyping(false);
           }
+          // 'thinking' messages are intentionally not displayed
         },
         (err) => {
-          setWsError(err);
+          setIsTyping(false);
           setWsConnected(false);
+          setWsError(err || 'Agent disconnected — please retry.');
         },
       );
       setWsConnected(true);
@@ -180,13 +187,7 @@ const AgentChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [allMessages]);
 
-  useEffect(() => {
-    if (!wsConnected) {
-      const timer = setTimeout(() => setIsTyping(true), 1000);
-      const timer2 = setTimeout(() => setIsTyping(false), 3000);
-      return () => { clearTimeout(timer); clearTimeout(timer2); };
-    }
-  }, [selectedAgent.id, wsConnected]);
+  // No fake typing animation — typing indicator only shows after sending a real message
 
   const handleSend = () => {
     if (!message.trim()) return;
@@ -203,14 +204,7 @@ const AgentChat = () => {
       chatService.send(message);
       setIsTyping(true);
     } else {
-      // Show error if not connected
-      setIsTyping(true);
-      setTimeout(() => {
-        setIsTyping(false);
-        if (!wsConnected) {
-          setWsError('Could not connect to agent — messages are not being sent');
-        }
-      }, 1500);
+      setWsError('Not connected to agent — message was not sent. Please retry.');
     }
     setMessage('');
   };
