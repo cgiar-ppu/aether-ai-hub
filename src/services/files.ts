@@ -3,7 +3,7 @@ import { API_BASE_URL } from '@/config/aws';
 
 export const filesService = {
   list: (path?: string) =>
-    api.get<any[]>(path ? `/api/files?path=${encodeURIComponent(path)}` : '/api/files'),
+    api.get<any[]>(path ? `/api/files/?path=${encodeURIComponent(path)}` : '/api/files/'),
 
   upload: async (file: File, path: string, token?: string) => {
     const formData = new FormData();

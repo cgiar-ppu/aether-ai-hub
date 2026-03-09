@@ -37,7 +37,7 @@ function normalizeAgent(a: any): any {
 
 export const agentsService = {
   list: async () => {
-    const agents = await api.get<any[]>('/api/agents');
+    const agents = await api.get<any[]>('/api/agents/');
     return agents.map(normalizeAgent);
   },
   get: async (id: string) => {

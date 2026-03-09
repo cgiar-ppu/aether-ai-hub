@@ -1,7 +1,7 @@
 import { api } from './api';
 
 export const workflowsService = {
-  list: () => api.get<any[]>('/api/workflows'),
+  list: () => api.get<any[]>('/api/workflows/'),
   get: (id: string) => api.get<any>(`/api/workflows/${id}`),
   create: (data?: Record<string, any>) => api.post<any>('/api/workflows', data),
   update: (id: string, data: Record<string, any>) =>
