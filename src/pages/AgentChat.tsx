@@ -83,6 +83,14 @@ const AgentChat = () => {
 
   // Provision session, poll for readiness, then connect WebSocket
   const connectWs = useCallback(async () => {
+    // If already connected to this agent, skip the full provision cycle
+    if (agentId && chatService.isConnected(agentId)) {
+      setWsConnected(true);
+      setProvisioning(false);
+      setWsError(null);
+      return;
+    }
+
     setWsError(null);
     setProvisioning(true);
     try {
@@ -174,13 +182,11 @@ const AgentChat = () => {
     }
   }, [agentId]);
 
-  // Try to connect on mount, cleanup on unmount (only this agent)
+  // Connect on mount — connection stays alive in the Map when navigating away
   useEffect(() => {
     connectWs();
-    return () => {
-      if (agentId) chatService.disconnectAgent(agentId);
-      if (sessionId) chatService.stopSession(sessionId).catch(() => {});
-    };
+    // No cleanup: connections persist in the ChatService Map so switching
+    // between agents doesn't kill the previous agent's WebSocket.
   }, [connectWs]);
 
   // Reset config when agent changes

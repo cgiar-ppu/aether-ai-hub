@@ -150,21 +150,26 @@ export class ChatService {
     });
   }
 
-  send(message: string, agentId?: string) {
-    // If agentId provided, send to that specific connection; otherwise send to the first open one
+  send(message: string, agentId?: string): boolean {
+    let ws: WebSocket | undefined;
     if (agentId) {
-      const ws = this.connections.get(agentId);
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'message', message: message }));
-      }
+      ws = this.connections.get(agentId);
     } else {
-      for (const ws of this.connections.values()) {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'message', message: message }));
-          break;
-        }
+      for (const conn of this.connections.values()) {
+        if (conn.readyState === WebSocket.OPEN) { ws = conn; break; }
       }
     }
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'message', message }));
+      return true;
+    }
+    return false;
+  }
+
+  /** Check if a specific agent has an open connection. */
+  isConnected(agentId: string): boolean {
+    const ws = this.connections.get(agentId);
+    return ws?.readyState === WebSocket.OPEN;
   }
 
   /** Close a specific agent's WebSocket connection. */
