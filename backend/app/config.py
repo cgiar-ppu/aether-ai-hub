@@ -24,7 +24,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
     ]
     AMPLIFY_APP_URL: str = "https://www.ai-co-scientist-app.synapsis-analytics.com"
-    AGENT_DIRECT_URL: str = "63.176.102.173:7860"
+    AGENT_DIRECT_URL: str = "63.179.145.65:7860"
 
     def get_jwks_url(self) -> str:
         """Build JWKS URL from Cognito User Pool ID if not explicitly set."""
