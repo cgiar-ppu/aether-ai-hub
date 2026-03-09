@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 ORCHESTRATOR = Agent(
     id="orchestrator",
     name="AI Co-Scientist Orchestrator",
-    type=AgentType.LITERATURE_ANALYST,  # placeholder type for the orchestrator
+    type=AgentType.ORCHESTRATOR,
     model="claude-opus-4-6",
     role=AgentRole.ORCHESTRATOR,
     description=(

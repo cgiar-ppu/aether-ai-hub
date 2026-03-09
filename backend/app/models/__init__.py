@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 
 class AgentType(str, Enum):
+    ORCHESTRATOR = "orchestrator"
     LITERATURE_ANALYST = "literature_analyst"
     DATA_HARMONIZER = "data_harmonizer"
     HYPOTHESIS_GENERATOR = "hypothesis_generator"
