@@ -41,7 +41,7 @@ function resolveAgentType(agentId: string): string {
 }
 
 export class ChatService {
-  private ws: WebSocket | null = null;
+  private connections: Map<string, WebSocket> = new Map();
   private tokenProvider: TokenProvider | null = null;
 
   setTokenProvider(provider: TokenProvider) {
@@ -117,10 +117,12 @@ export class ChatService {
       if (token) url += `&token=${token}`;
     }
 
-    this.disconnect();
-    this.ws = new WebSocket(url);
+    // Close only this agent's previous connection (not all agents)
+    this.disconnectAgent(agentId);
+    const ws = new WebSocket(url);
+    this.connections.set(agentId, ws);
 
-    this.ws.onmessage = (event) => {
+    ws.onmessage = (event) => {
       try {
         const msg: ChatWsMessage = JSON.parse(event.data);
         onMessage(msg);
@@ -129,8 +131,9 @@ export class ChatService {
       }
     };
 
-    this.ws.onerror = () => onError('WebSocket connection error');
-    this.ws.onclose = (e) => {
+    ws.onerror = () => onError('WebSocket connection error');
+    ws.onclose = (e) => {
+      this.connections.delete(agentId);
       if (e.code !== 1000) {
         const reason = e.reason || `code ${e.code}`;
         onError(`Agent disconnected (${reason}). Please retry.`);
@@ -138,27 +141,47 @@ export class ChatService {
     };
 
     return new Promise<void>((resolve, reject) => {
-      if (!this.ws) return reject(new Error('No WebSocket'));
-      this.ws.onopen = () => resolve();
-      const origError = this.ws.onerror;
-      this.ws.onerror = (ev) => {
+      ws.onopen = () => resolve();
+      const origError = ws.onerror;
+      ws.onerror = (ev) => {
         if (origError) (origError as any)(ev);
         reject(new Error('Could not connect to agent'));
       };
     });
   }
 
-  send(message: string) {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'message', message: message }));
+  send(message: string, agentId?: string) {
+    // If agentId provided, send to that specific connection; otherwise send to the first open one
+    if (agentId) {
+      const ws = this.connections.get(agentId);
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'message', message: message }));
+      }
+    } else {
+      for (const ws of this.connections.values()) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'message', message: message }));
+          break;
+        }
+      }
     }
   }
 
-  disconnect() {
-    if (this.ws) {
-      this.ws.close(1000);
-      this.ws = null;
+  /** Close a specific agent's WebSocket connection. */
+  disconnectAgent(agentId: string) {
+    const ws = this.connections.get(agentId);
+    if (ws) {
+      ws.close(1000);
+      this.connections.delete(agentId);
     }
+  }
+
+  /** Close all agent connections. */
+  disconnect() {
+    for (const [id, ws] of this.connections) {
+      ws.close(1000);
+    }
+    this.connections.clear();
   }
 }
 

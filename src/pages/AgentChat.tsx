@@ -174,11 +174,11 @@ const AgentChat = () => {
     }
   }, [agentId]);
 
-  // Try to connect on mount, cleanup on unmount
+  // Try to connect on mount, cleanup on unmount (only this agent)
   useEffect(() => {
     connectWs();
     return () => {
-      chatService.disconnect();
+      if (agentId) chatService.disconnectAgent(agentId);
       if (sessionId) chatService.stopSession(sessionId).catch(() => {});
     };
   }, [connectWs]);
@@ -213,7 +213,7 @@ const AgentChat = () => {
     setLiveMessages(prev => [...prev, userMsg]);
 
     if (wsConnected) {
-      chatService.send(message);
+      chatService.send(message, agentId);
       setIsTyping(true);
     } else {
       setWsError('Not connected to agent — message was not sent. Please retry.');
