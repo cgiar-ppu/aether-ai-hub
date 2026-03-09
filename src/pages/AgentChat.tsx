@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, ArrowLeft, Settings2, X, AlertTriangle, Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { agents, agentToolsMap, type ChatMessage } from '@/data/mockData';
 import CodeBlock from '@/components/CodeBlock';
 import { cn } from '@/lib/utils';
@@ -45,29 +46,40 @@ const AgentChat = () => {
   // Only show live messages from the real WebSocket connection
   const allMessages = liveMessages;
 
-  // Parse message content for code blocks
-  const renderMessageContent = (content: string) => {
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(<span key={`t-${lastIndex}`}>{content.slice(lastIndex, match.index)}</span>);
-      }
-      const language = match[1] || 'code';
-      const code = match[2].trim();
-      parts.push(<CodeBlock key={`c-${match.index}`} language={language} code={code} />);
-      lastIndex = match.index + match[0].length;
-    }
-
-    if (lastIndex < content.length) {
-      parts.push(<span key={`t-${lastIndex}`}>{content.slice(lastIndex)}</span>);
-    }
-
-    return parts.length > 0 ? parts : content;
-  };
+  // Render message content as Markdown (bold, lists, headers, code blocks)
+  const renderMessageContent = (content: string) => (
+    <ReactMarkdown
+      components={{
+        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+        ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
+        li: ({ children }) => <li className="mb-0.5">{children}</li>,
+        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+        h1: ({ children }) => <h3 className="font-bold text-base mt-3 mb-1">{children}</h3>,
+        h2: ({ children }) => <h3 className="font-bold text-base mt-3 mb-1">{children}</h3>,
+        h3: ({ children }) => <h3 className="font-bold text-sm mt-2 mb-1">{children}</h3>,
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+            {children}
+          </a>
+        ),
+        code: ({ className, children }) => {
+          const match = /language-(\w+)/.exec(className || '');
+          if (match) {
+            return <CodeBlock language={match[1]} code={String(children).replace(/\n$/, '')} />;
+          }
+          return (
+            <code className="bg-secondary/60 px-1.5 py-0.5 rounded text-xs font-mono">
+              {children}
+            </code>
+          );
+        },
+        pre: ({ children }) => <>{children}</>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
 
   // Provision session, poll for readiness, then connect WebSocket
   const connectWs = useCallback(async () => {

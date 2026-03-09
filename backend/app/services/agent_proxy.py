@@ -195,82 +195,99 @@ class AgentProxy:
             "Relay connecting to container: %s (session=%s)", ws_url, session_id
         )
 
-        try:
-            async with websockets.connect(
-                ws_url, open_timeout=15, close_timeout=5
-            ) as container_ws:
-                logger.info("Container WS connected for session %s", session_id)
+        max_retries = 3
+        last_error: Optional[Exception] = None
 
-                async def forward_to_container():
-                    try:
-                        while True:
-                            data = await frontend_ws.receive_text()
-                            await container_ws.send(data)
-                    except WebSocketDisconnect:
-                        logger.info("Frontend disconnected for session %s", session_id)
+        for attempt in range(max_retries):
+            try:
+                async with websockets.connect(
+                    ws_url, open_timeout=15, close_timeout=5
+                ) as container_ws:
+                    logger.info("Container WS connected for session %s", session_id)
 
-                async def forward_to_frontend():
-                    try:
-                        async for message in container_ws:
-                            await frontend_ws.send_text(
-                                message if isinstance(message, str) else message.decode()
+                    async def forward_to_container():
+                        try:
+                            while True:
+                                data = await frontend_ws.receive_text()
+                                await container_ws.send(data)
+                        except WebSocketDisconnect:
+                            logger.info("Frontend disconnected for session %s", session_id)
+
+                    async def forward_to_frontend():
+                        try:
+                            async for message in container_ws:
+                                await frontend_ws.send_text(
+                                    message if isinstance(message, str) else message.decode()
+                                )
+                        except websockets.ConnectionClosed:
+                            logger.info(
+                                "Container WS closed for session %s", session_id
                             )
-                    except websockets.ConnectionClosed:
-                        logger.info(
-                            "Container WS closed for session %s", session_id
-                        )
 
-                async def heartbeat():
-                    try:
-                        while True:
-                            await asyncio.sleep(30)
-                            await container_ws.ping()
-                    except Exception:
-                        pass
+                    async def heartbeat():
+                        try:
+                            while True:
+                                await asyncio.sleep(30)
+                                await container_ws.ping()
+                        except Exception:
+                            pass
 
-                tasks = [
-                    asyncio.create_task(forward_to_container()),
-                    asyncio.create_task(forward_to_frontend()),
-                    asyncio.create_task(heartbeat()),
-                ]
-                done, pending = await asyncio.wait(
-                    tasks, return_when=asyncio.FIRST_COMPLETED
-                )
-                for task in pending:
-                    task.cancel()
+                    tasks = [
+                        asyncio.create_task(forward_to_container()),
+                        asyncio.create_task(forward_to_frontend()),
+                        asyncio.create_task(heartbeat()),
+                    ]
+                    done, pending = await asyncio.wait(
+                        tasks, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    for task in pending:
+                        task.cancel()
+                    last_error = None
+                    break  # connected successfully, relay finished
 
-        except (ConnectionRefusedError, OSError) as e:
+            except (ConnectionRefusedError, OSError, asyncio.TimeoutError) as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait = 2 ** attempt
+                    logger.warning(
+                        "Agent connect attempt %d/%d failed for session %s: %s, retrying in %ds",
+                        attempt + 1, max_retries, session_id, e, wait,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+
+            except Exception as e:
+                logger.error("WebSocket relay error for session %s: %s", session_id, e)
+                try:
+                    await frontend_ws.send_text(
+                        json.dumps({
+                            "type": "error",
+                            "error": f"Connection to agent lost: {e}",
+                        })
+                    )
+                except Exception:
+                    pass
+                break
+
+        if last_error is not None:
             logger.error(
-                "Cannot reach container %s for session %s: %s",
-                ws_url,
-                session_id,
-                e,
+                "Cannot reach agent %s for session %s after %d attempts: %s",
+                ws_url, session_id, max_retries, last_error,
             )
             try:
                 await frontend_ws.send_text(
                     json.dumps({
                         "type": "error",
-                        "error": "Agent container is not reachable. It may still be starting — please retry.",
+                        "error": "Agent is temporarily unavailable. Please retry in a moment.",
                     })
                 )
             except Exception:
                 pass
-        except Exception as e:
-            logger.error("WebSocket relay error for session %s: %s", session_id, e)
-            try:
-                await frontend_ws.send_text(
-                    json.dumps({
-                        "type": "error",
-                        "error": f"Connection to agent lost: {e}",
-                    })
-                )
-            except Exception:
-                pass
-        finally:
-            try:
-                await frontend_ws.close()
-            except Exception:
-                pass
+
+        try:
+            await frontend_ws.close()
+        except Exception:
+            pass
 
     async def check_status(
         self, session_id: str, user_id: str = "guest"
