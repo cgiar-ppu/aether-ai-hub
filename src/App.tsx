@@ -24,9 +24,14 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const location = useLocation();
+  // Use a stable key for agent chat routes so switching agents updates in-place
+  // instead of unmount/remount (which causes "not connected" errors).
+  const routeKey = location.pathname.startsWith('/agents/') && location.pathname.endsWith('/chat')
+    ? '/agents/chat'
+    : location.pathname;
   return (
     <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+      <Routes location={location} key={routeKey}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/agents" element={<Agents />} />
         <Route path="/agents/:agentId/chat" element={<AgentChat />} />

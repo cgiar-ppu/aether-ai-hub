@@ -196,13 +196,12 @@ const AgentChat = () => {
     }
   }, [agentId]);
 
-  // Connect on mount / agent change; cleanup disconnects the OLD agent
+  // Connect on mount / agent change.
+  // No cleanup — chatService.connect() already closes the previous connection
+  // for the same agentId before opening a new one. The old cleanup caused
+  // disconnects during agent switches now that the component stays mounted.
   useEffect(() => {
     connectWs();
-    return () => {
-      if (agentId) chatService.disconnectAgent(agentId);
-      setWsConnected(false);
-    };
   }, [agentId]);
 
   // Reset config when agent changes
@@ -446,10 +445,11 @@ const AgentChat = () => {
             <Input
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder={`Message ${selectedAgent.name}...`}
+              placeholder={wsConnected ? `Message ${selectedAgent.name}...` : 'Connecting to agent...'}
               className="flex-1 glass border-border text-sm h-10"
+              disabled={!wsConnected}
             />
-            <Button type="submit" size="icon" className="h-10 w-10 rounded-xl shrink-0">
+            <Button type="submit" size="icon" className="h-10 w-10 rounded-xl shrink-0" disabled={!wsConnected || !agentId}>
               <Send className="h-4 w-4" />
             </Button>
           </form>
