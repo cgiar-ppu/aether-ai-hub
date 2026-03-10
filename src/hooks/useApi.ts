@@ -19,14 +19,21 @@ export function useApi<T>(
   const [isLive, setIsLive] = useState(false);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
+  const initialMockRef = useRef(initialMockData);
 
   const doFetch = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const result = await fetcherRef.current();
-      setData(result);
-      setIsLive(true);
+      // If the API returns an empty array but we have mock data, keep showing
+      // mock data so the UI never appears broken due to an empty backend.
+      if (Array.isArray(result) && result.length === 0 && Array.isArray(initialMockRef.current) && initialMockRef.current.length > 0) {
+        setIsLive(false);
+      } else {
+        setData(result);
+        setIsLive(true);
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to fetch data');
       // Keep current data visible — do NOT replace with mock on failure
