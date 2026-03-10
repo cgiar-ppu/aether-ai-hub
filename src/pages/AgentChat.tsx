@@ -25,8 +25,8 @@ const confidenceColors: Record<string, string> = {
 
 const AgentChat = () => {
   const { agentId } = useParams<{ agentId: string }>();
-  const currentAgentRef = useRef(agentId);
-  currentAgentRef.current = agentId;
+  const currentAgentRef = useRef<string>(agentId || '');
+  const connectAbortRef = useRef<number>(0);
   const navigate = useNavigate();
   const selectedAgent = agents.find(a => a.id === agentId) || agents[0];
   const [message, setMessage] = useState('');
@@ -42,6 +42,10 @@ const AgentChat = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    currentAgentRef.current = agentId || '';
+  }, [agentId]);
 
   const agentTools = agentToolsMap[selectedAgent.id] || [];
 
@@ -84,10 +88,11 @@ const AgentChat = () => {
   );
 
   // Provision session, poll for readiness, then connect WebSocket.
-  // Captures agentId at call time and bails at every async boundary if the
-  // user switched agents while we were awaiting.
+  // Uses a monotonic connectId counter so that if the user switches agents
+  // (even A→B→A), any stale in-flight connectWs silently aborts.
   const connectWs = useCallback(async () => {
-    const thisAgent = agentId; // snapshot at call time
+    const connectId = ++connectAbortRef.current;
+    const thisAgent = agentId;
 
     // If already connected to this agent, skip the full provision cycle
     if (thisAgent && chatService.isConnected(thisAgent)) {
@@ -97,12 +102,13 @@ const AgentChat = () => {
       return;
     }
 
+    setWsConnected(false);
     setWsError(null);
     setProvisioning(true);
     try {
       // 1. Start session
       const session = await chatService.startSession(thisAgent!);
-      if (thisAgent !== currentAgentRef.current) return; // agent changed — abort
+      if (connectId !== connectAbortRef.current) return; // stale — abort
       const sid = session.session_id;
       setSessionId(sid);
 
@@ -112,7 +118,7 @@ const AgentChat = () => {
       let lastStatus = session.status;
       while (!ready && Date.now() < deadline) {
         await new Promise(r => setTimeout(r, 3000));
-        if (thisAgent !== currentAgentRef.current) return; // agent changed — abort
+        if (connectId !== connectAbortRef.current) return; // stale — abort
         try {
           const st = await chatService.getStatus(sid);
           lastStatus = st.status;
@@ -122,7 +128,7 @@ const AgentChat = () => {
         }
       }
 
-      if (thisAgent !== currentAgentRef.current) return; // agent changed — abort
+      if (connectId !== connectAbortRef.current) return; // stale — abort
       setProvisioning(false);
 
       if (!ready) {
@@ -141,8 +147,8 @@ const AgentChat = () => {
         sid,
         thisAgent!,
         (msg: ChatWsMessage) => {
-          // Only update UI if this agent is still the active one
-          if (thisAgent !== currentAgentRef.current) return;
+          // Only update UI if this connection is still the active one
+          if (connectId !== connectAbortRef.current) return;
 
           if ((msg.type === 'text' || msg.type === 'agent_response') && msg.content) {
             setIsTyping(false);
@@ -186,10 +192,10 @@ const AgentChat = () => {
         },
       );
 
-      if (thisAgent !== currentAgentRef.current) return; // agent changed — abort
+      if (connectId !== connectAbortRef.current) return; // stale — abort
       setWsConnected(true);
     } catch (e) {
-      if (thisAgent !== currentAgentRef.current) return; // agent changed — abort
+      if (connectId !== connectAbortRef.current) return; // stale — abort
       setProvisioning(false);
       setWsError(e instanceof Error ? e.message : 'Could not connect to agent');
       setWsConnected(false);
@@ -197,11 +203,19 @@ const AgentChat = () => {
   }, [agentId]);
 
   // Connect on mount / agent change.
-  // No cleanup — chatService.connect() already closes the previous connection
-  // for the same agentId before opening a new one. The old cleanup caused
-  // disconnects during agent switches now that the component stays mounted.
+  // Resets UI state, disconnects the previous agent, and starts a fresh connection.
   useEffect(() => {
+    if (!agentId) return;
+    setLiveMessages([]);
+    setWsError(null);
+    setWsConnected(false);
+    setSessionId(null);
+    setProvisioning(false);
+    chatService.disconnectAgent(agentId);
     connectWs();
+    return () => {
+      chatService.disconnectAgent(agentId);
+    };
   }, [agentId]);
 
   // Reset config when agent changes
@@ -210,11 +224,6 @@ const AgentChat = () => {
     const states: Record<string, boolean> = {};
     agentTools.forEach(t => { states[t.name] = t.enabled; });
     setToolStates(states);
-    setLiveMessages([]);
-    setWsError(null);
-    setSessionId(null);
-    setProvisioning(false);
-    setWsConnected(agentId ? chatService.isConnected(agentId) : false);
   }, [selectedAgent.id]);
 
   useEffect(() => {
@@ -223,8 +232,15 @@ const AgentChat = () => {
 
   // No fake typing animation — typing indicator only shows after sending a real message
 
+  const canSend = wsConnected && !!agentId && chatService.isConnected(agentId);
+
   const handleSend = () => {
     if (!message.trim()) return;
+    if (!agentId || !chatService.isConnected(agentId)) {
+      setWsError('Not connected to agent. Reconnecting...');
+      connectWs();
+      return;
+    }
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       agentId: selectedAgent.id,
@@ -233,13 +249,8 @@ const AgentChat = () => {
       timestamp: 'just now',
     };
     setLiveMessages(prev => [...prev, userMsg]);
-
-    if (agentId && chatService.isConnected(agentId)) {
-      chatService.send(message, agentId);
-      setIsTyping(true);
-    } else {
-      setWsError('Not connected to agent — message was not sent. Please retry.');
-    }
+    chatService.send(message, agentId);
+    setIsTyping(true);
     setMessage('');
   };
 
@@ -445,11 +456,11 @@ const AgentChat = () => {
             <Input
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder={wsConnected ? `Message ${selectedAgent.name}...` : 'Connecting to agent...'}
+              placeholder={canSend ? `Message ${selectedAgent.name}...` : 'Connecting to agent...'}
               className="flex-1 glass border-border text-sm h-10"
-              disabled={!wsConnected}
+              disabled={!canSend}
             />
-            <Button type="submit" size="icon" className="h-10 w-10 rounded-xl shrink-0" disabled={!wsConnected || !agentId}>
+            <Button type="submit" size="icon" className="h-10 w-10 rounded-xl shrink-0" disabled={!canSend}>
               <Send className="h-4 w-4" />
             </Button>
           </form>
