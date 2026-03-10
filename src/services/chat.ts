@@ -122,6 +122,12 @@ export class ChatService {
     const ws = new WebSocket(url);
     this.connections.set(agentId, ws);
 
+    const keepAlive = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'ping' })); }
+      else { clearInterval(keepAlive); }
+    }, 25000);
+    ws.addEventListener('close', () => clearInterval(keepAlive));
+
     ws.onmessage = (event) => {
       try {
         const msg: ChatWsMessage = JSON.parse(event.data);

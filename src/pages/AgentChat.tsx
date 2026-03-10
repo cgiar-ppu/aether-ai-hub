@@ -25,6 +25,8 @@ const confidenceColors: Record<string, string> = {
 
 const AgentChat = () => {
   const { agentId } = useParams<{ agentId: string }>();
+  const currentAgentRef = useRef(agentId);
+  currentAgentRef.current = agentId;
   const navigate = useNavigate();
   const selectedAgent = agents.find(a => a.id === agentId) || agents[0];
   const [message, setMessage] = useState('');
@@ -169,9 +171,11 @@ const AgentChat = () => {
           // 'thinking' messages are intentionally not displayed
         },
         (err) => {
-          setIsTyping(false);
-          setWsConnected(false);
-          setWsError(err || 'Agent disconnected — please retry.');
+          if (agentId === currentAgentRef.current) {
+            setIsTyping(false);
+            setWsConnected(false);
+            setWsError(err || 'Agent disconnected — please retry.');
+          }
         },
       );
       setWsConnected(true);
@@ -199,6 +203,7 @@ const AgentChat = () => {
     setWsError(null);
     setSessionId(null);
     setProvisioning(false);
+    setWsConnected(agentId ? chatService.isConnected(agentId) : false);
   }, [selectedAgent.id]);
 
   useEffect(() => {
@@ -218,7 +223,7 @@ const AgentChat = () => {
     };
     setLiveMessages(prev => [...prev, userMsg]);
 
-    if (wsConnected) {
+    if (agentId && chatService.isConnected(agentId)) {
       chatService.send(message, agentId);
       setIsTyping(true);
     } else {
