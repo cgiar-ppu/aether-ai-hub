@@ -83,10 +83,14 @@ const AgentChat = () => {
     </ReactMarkdown>
   );
 
-  // Provision session, poll for readiness, then connect WebSocket
+  // Provision session, poll for readiness, then connect WebSocket.
+  // Captures agentId at call time and bails at every async boundary if the
+  // user switched agents while we were awaiting.
   const connectWs = useCallback(async () => {
+    const thisAgent = agentId; // snapshot at call time
+
     // If already connected to this agent, skip the full provision cycle
-    if (agentId && chatService.isConnected(agentId)) {
+    if (thisAgent && chatService.isConnected(thisAgent)) {
       setWsConnected(true);
       setProvisioning(false);
       setWsError(null);
@@ -96,19 +100,19 @@ const AgentChat = () => {
     setWsError(null);
     setProvisioning(true);
     try {
-      // 1. Start session — provisions a container (use URL agentId, not mock selectedAgent.id)
-      const session = await chatService.startSession(agentId!);
+      // 1. Start session
+      const session = await chatService.startSession(thisAgent!);
+      if (thisAgent !== currentAgentRef.current) return; // agent changed — abort
       const sid = session.session_id;
       setSessionId(sid);
 
-      // 2. Poll status until container is truly healthy (max 90s for cold starts).
-      //    Never trust the provision response — it may optimistically return
-      //    "active" before the container is actually serving requests.
+      // 2. Poll status until container is truly healthy (max 90s)
       const deadline = Date.now() + 90_000;
       let ready = false;
       let lastStatus = session.status;
       while (!ready && Date.now() < deadline) {
         await new Promise(r => setTimeout(r, 3000));
+        if (thisAgent !== currentAgentRef.current) return; // agent changed — abort
         try {
           const st = await chatService.getStatus(sid);
           lastStatus = st.status;
@@ -117,6 +121,8 @@ const AgentChat = () => {
           // status endpoint may error while starting — keep polling
         }
       }
+
+      if (thisAgent !== currentAgentRef.current) return; // agent changed — abort
       setProvisioning(false);
 
       if (!ready) {
@@ -130,12 +136,14 @@ const AgentChat = () => {
         return;
       }
 
-      // 3. Connect WebSocket (use URL agentId for consistency)
+      // 3. Connect WebSocket
       await chatService.connect(
         sid,
-        agentId!,
+        thisAgent!,
         (msg: ChatWsMessage) => {
-          // Agent sends: text (response), thinking, tool_use, error, done
+          // Only update UI if this agent is still the active one
+          if (thisAgent !== currentAgentRef.current) return;
+
           if ((msg.type === 'text' || msg.type === 'agent_response') && msg.content) {
             setIsTyping(false);
             const newMsg: ChatMessage = {
@@ -168,30 +176,34 @@ const AgentChat = () => {
           } else if (msg.type === 'done') {
             setIsTyping(false);
           }
-          // 'thinking' messages are intentionally not displayed
         },
         (err) => {
-          if (agentId === currentAgentRef.current) {
+          if (thisAgent === currentAgentRef.current) {
             setIsTyping(false);
             setWsConnected(false);
             setWsError(err || 'Agent disconnected — please retry.');
           }
         },
       );
+
+      if (thisAgent !== currentAgentRef.current) return; // agent changed — abort
       setWsConnected(true);
     } catch (e) {
+      if (thisAgent !== currentAgentRef.current) return; // agent changed — abort
       setProvisioning(false);
       setWsError(e instanceof Error ? e.message : 'Could not connect to agent');
       setWsConnected(false);
     }
   }, [agentId]);
 
-  // Connect on mount — connection stays alive in the Map when navigating away
+  // Connect on mount / agent change; cleanup disconnects the OLD agent
   useEffect(() => {
     connectWs();
-    // No cleanup: connections persist in the ChatService Map so switching
-    // between agents doesn't kill the previous agent's WebSocket.
-  }, [connectWs]);
+    return () => {
+      if (agentId) chatService.disconnectAgent(agentId);
+      setWsConnected(false);
+    };
+  }, [agentId]);
 
   // Reset config when agent changes
   useEffect(() => {
